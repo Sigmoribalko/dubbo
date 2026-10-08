@@ -6,7 +6,7 @@ import { MicMeter } from "../components/MicMeter";
 import { useAnimationFrame } from "../components/useAnimationFrame";
 import { VideoErrorModal } from "../components/VideoErrorModal";
 import { useT } from "../i18n";
-import { effectIcon, type EffectId } from "../lib/audio/effects";
+import type { EffectId } from "../lib/audio/effects";
 import { decodeBlob, routeVideo, unlockAudio, VideoMixer } from "../lib/audio/engine";
 import { getMic, hasMic, pickMime, setMonitor } from "../lib/audio/mic";
 import { sleep } from "../lib/util";
@@ -213,7 +213,7 @@ export function Record() {
           const fx = game.effects[r.id];
           return (
             <span key={r.id} className={"chip pass" + (done ? " done" : "") + (r.id === roleId ? " cur" : "")} style={{ ["--c" as string]: r.color }}>
-              {r.name}{done && fx && fx !== "none" ? ` ${effectIcon(fx)}` : ""}
+              {r.name}{done && fx && fx !== "none" ? ` · ${t.effects[fx][0]}` : ""}
             </span>
           );
         })}
@@ -222,7 +222,7 @@ export function Record() {
       <div className={"stage" + (phase === "rec" ? " recording" : "")}>
         <video ref={video} src={game.videoUrl} playsInline preload="auto" onError={() => setVideoError(true)} />
         <div className="tally">REC</div>
-        {effect !== "none" && <div className="fx-badge">{effectIcon(effect)} {t.effects[effect][0]}</div>}
+        {effect !== "none" && <div className="fx-badge">{t.effects[effect][0]}</div>}
         {count != null && <div className="countdown"><span key={count}>{count}</span></div>}
         <Progress video={video} />
       </div>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Icon } from "./components/Icon";
 import { LangSwitch } from "./components/LangSwitch";
 import { SettingsModal } from "./components/SettingsModal";
 import { Toaster } from "./components/Toast";
@@ -72,8 +73,8 @@ export function App() {
         <button className="wordmark" onClick={home} aria-label={t.header.home}>Dubbo<i>.</i></button>
         <div className="spacer" />
         {view.name === "home" && <LangSwitch />}
-        <button className="small ghost icon-btn" onClick={() => setSettingsOpen(true)} aria-label={t.header.settings} title={t.header.settings}>⚙</button>
-        <button className="small ghost icon-btn" onClick={toggleTheme} aria-label={t.header.theme} title={t.header.theme}>◐</button>
+        <button className="small ghost icon-btn" onClick={() => setSettingsOpen(true)} aria-label={t.header.settings} title={t.header.settings}><Icon name="gear" size={20} /></button>
+        <button className="small ghost icon-btn" onClick={toggleTheme} aria-label={t.header.theme} title={t.header.theme}><Icon name="contrast" size={20} /></button>
       </header>
       <main className="view" key={view.name + ("packId" in view ? view.packId ?? "" : "")}>
         {view.name === "home" && <Home />}

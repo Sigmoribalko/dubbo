@@ -6,20 +6,19 @@
  */
 
 export const EFFECTS = [
-  { id: "none", icon: "🎙️" },
-  { id: "chipmunk", icon: "🐿️" },
-  { id: "giant", icon: "🗿" },
-  { id: "demon", icon: "😈" },
-  { id: "robot", icon: "🤖" },
-  { id: "radio", icon: "📻" },
-  { id: "phone", icon: "☎️" },
-  { id: "echo", icon: "🏔️" },
-  { id: "cave", icon: "🦇" },
-  { id: "underwater", icon: "🫧" },
+  { id: "none" },
+  { id: "chipmunk" },
+  { id: "giant" },
+  { id: "demon" },
+  { id: "robot" },
+  { id: "radio" },
+  { id: "phone" },
+  { id: "echo" },
+  { id: "cave" },
+  { id: "underwater" },
 ] as const;
 
 export type EffectId = (typeof EFFECTS)[number]["id"];
-export const effectIcon = (id: EffectId | undefined) => (EFFECTS.find((e) => e.id === id) ?? EFFECTS[0]).icon;
 
 export interface EffectChain {
   input: AudioNode;

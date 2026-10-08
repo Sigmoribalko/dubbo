@@ -19,7 +19,6 @@ export function EffectPicker({ value, onChange, disabled }: Props) {
         return (
           <label className="fx" key={fx.id} title={hint}>
             <input type="radio" name={name} value={fx.id} checked={value === fx.id} onChange={() => onChange(fx.id)} />
-            <span className="fx-icon" aria-hidden="true">{fx.icon}</span>
             <span className="fx-name">{label}</span>
             <span className="fx-hint">{hint}</span>
           </label>

@@ -4,7 +4,6 @@ import { confetti } from "../components/confetti";
 import { Modal } from "../components/Modal";
 import { VideoErrorModal } from "../components/VideoErrorModal";
 import { useT } from "../i18n";
-import { effectIcon } from "../lib/audio/effects";
 import { routeVideo, unlockAudio, VideoMixer, type MixTrack, type VideoDuck } from "../lib/audio/engine";
 import { canExportVideo, exportVideo, type VideoExportJob } from "../lib/audio/exportVideo";
 import { fmtTime, prefersReducedMotion, safeFileName } from "../lib/util";
@@ -117,8 +116,8 @@ export function Screening() {
             <div className={"take" + (win ? " winner" : "")} key={role.id}>
               <div className="row">
                 <span className="chip tag" style={{ ["--c" as string]: role.color }}>{role.name}</span>
-                <h3 style={{ flex: 1 }}>{win ? "🏆 " : ""}{game.cast[role.id]}{mine ? <small className="muted"> · {t.online.you}</small> : null}</h3>
-                {effect !== "none" && <span className="muted fine">{effectIcon(effect)} {t.effects[effect][0]}</span>}
+                <h3 style={{ flex: 1 }}>{win && <span className="win-badge">{t.screen.winner}</span>}{game.cast[role.id]}{mine ? <small className="muted"> · {t.online.you}</small> : null}</h3>
+                {effect !== "none" && <span className="muted fine">{t.effects[effect][0]}</span>}
               </div>
               <div className="row">
                 {mine && <button className="small" onClick={() => go({ name: "record" })}>{recorded ? t.screen.rerecord : t.screen.record}</button>}

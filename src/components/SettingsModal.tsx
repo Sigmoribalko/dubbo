@@ -85,7 +85,7 @@ export function SettingsModal({ onClose }: { onClose(): void }) {
           </select>
         </div>
         <Slider k="micGain" label={s.micGain} max={300} hint={s.micHint} />
-        {micOpen ? <MicMeter label={s.level} /> : <button className="small" style={{ justifySelf: "start" }} onClick={testMic}>🎙️ {s.allowMic}</button>}
+        {micOpen ? <MicMeter label={s.level} /> : <button className="small" style={{ justifySelf: "start" }} onClick={testMic}>{s.allowMic}</button>}
         <div className="row">
           <Toggle k="noiseSuppression" label={s.noiseSuppression} />
           <Toggle k="echoCancellation" label={s.echoCancellation} />

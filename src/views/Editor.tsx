@@ -6,6 +6,7 @@ import { exportPack } from "../lib/pack/export";
 import { sceneMediaKeys, store } from "../lib/store";
 import type { Line, Pack, Scene } from "../lib/types";
 import { MIME, colorFor, extOf, prefersReducedMotion, uid, withMime } from "../lib/util";
+import { Icon } from "../components/Icon";
 import { useT } from "../i18n";
 import { notify, useApp } from "../state/app";
 
@@ -276,13 +277,13 @@ function SceneEditor({ scene, update, onDelete }: SceneEditorProps) {
                 <div className="ln-time" key={f}>
                   <TimeInput label={f === "start" ? t.editor.start : t.editor.end} value={l[f]} onCommit={(v, done) => setLine(l.id, (x) => { x[f] = v; }, done)} />
                   <button title={f === "start" ? t.editor.startFromVideo : t.editor.endFromVideo} aria-label={f === "start" ? t.editor.startFromVideo : t.editor.endFromVideo}
-                    onClick={() => setLine(l.id, (x) => { x[f] = round1(now()); }, true)}>⏱</button>
+                    onClick={() => setLine(l.id, (x) => { x[f] = round1(now()); }, true)}><Icon name="clock" size={15} /></button>
                 </div>
               ))}
               <input className="ln-text" value={l.text} placeholder={t.editor.textPlaceholder} aria-label={t.editor.text}
                 onChange={(e) => { const v = e.target.value; setLine(l.id, (x) => { x.text = v; }); }} />
               <div className="ln-acts">
-                {l.clip && <button className="small ghost" title={t.editor.playOriginal} aria-label={t.editor.playOriginal} onClick={() => playClip(l.clip!)}>▶</button>}
+                {l.clip && <button className="small ghost" title={t.editor.playOriginal} aria-label={t.editor.playOriginal} onClick={() => playClip(l.clip!)}><Icon name="play" size={15} /></button>}
                 <button className="small ghost" title={t.editor.seekLine} aria-label={t.editor.seekLine} onClick={() => { if (video.current) video.current.currentTime = l.start; }}>↦</button>
                 <button className="small ghost danger" aria-label={t.editor.deleteLine} onClick={() => update((s) => { s.lines = s.lines.filter((x) => x.id !== l.id); })}>✕</button>
               </div>

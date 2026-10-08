@@ -220,7 +220,7 @@ function Lobby({ snap }: { snap: Snapshot }) {
           {isHost && (
             <label className="switch" title={scene ? t.online.publicHint : t.online.publicNeedScene}>
               <input type="checkbox" checked={snap.public} disabled={!scene} onChange={(e) => hostSetPublic(e.target.checked)} />
-              🌍 {t.online.publicToggle}
+              {t.online.publicToggle}
             </label>
           )}
           {isHost && <p className="muted fine">{scene ? t.online.publicHint : t.online.publicNeedScene}</p>}

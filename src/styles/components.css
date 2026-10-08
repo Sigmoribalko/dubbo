@@ -84,7 +84,6 @@
   border: 1.5px solid var(--line); background: var(--panel); cursor: pointer; text-align: left; white-space: normal;
 }
 .fx input { position: absolute; opacity: 0; pointer-events: none; }
-.fx-icon { font-size: 1.4rem; line-height: 1; }
 .fx-name { font-weight: 700; font-size: 0.92rem; }
 .fx-hint { font-size: 0.75rem; color: var(--muted); line-height: 1.25; }
 .fx:hover { border-color: var(--ink); }
@@ -128,7 +127,7 @@
 .seg-big input { position: absolute; opacity: 0; pointer-events: none; }
 .seg-big label:has(input:focus-visible) { outline: 3px solid var(--focus); outline-offset: 2px; }
 .seg-big b { font: 700 1.05rem var(--font-display); display: block; margin-bottom: 2px; }
-.seg-icon { display: block; font-size: 1.8rem; line-height: 1; margin-bottom: 8px; }
+
 
 /* ---------- overlays ---------- */
 .toast {
@@ -140,8 +139,8 @@
 pre.diag { background: var(--bg); border-radius: var(--r-sm); padding: 10px; font-size: 0.8rem; max-height: 40vh; overflow: auto; white-space: pre-wrap; word-break: break-all; margin: 0; }
 .spinner { width: 22px; height: 22px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--ink); animation: spin 0.8s linear infinite; }
 
-.confetti { position: fixed; left: 50%; top: 40%; pointer-events: none; z-index: 60; font-size: 1.6rem; }
-.confetti span { position: absolute; left: 0; top: 0; animation: fly 1.3s cubic-bezier(0.15, 0.7, 0.3, 1) forwards; }
+.confetti { position: fixed; left: 50%; top: 40%; pointer-events: none; z-index: 60; }
+.confetti span { position: absolute; left: 0; top: 0; width: 10px; height: 14px; border-radius: 2px; animation: fly 1.3s cubic-bezier(0.15, 0.7, 0.3, 1) forwards; }
 
 /* ---------- header controls ---------- */
 .icon-btn { width: 44px; height: 44px; padding: 0; font-size: 1.2rem; }
@@ -204,3 +203,10 @@ button.link:hover { transform: none; }
 .seats { display: inline-flex; gap: 4px; }
 .seats i { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--muted); }
 .seats i.on { background: var(--accent); border-color: var(--accent); }
+
+.win-badge {
+  display: inline-block; vertical-align: middle; margin-right: 8px; padding: 2px 9px; border-radius: 999px;
+  background: var(--rec); color: #fff; font: 700 0.72rem var(--font-body); letter-spacing: 0.04em; text-transform: uppercase;
+}
+.icon-btn svg { display: block; }
+.ln-time button svg, .ln-acts button svg { display: block; }
