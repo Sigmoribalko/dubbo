@@ -218,3 +218,20 @@ button.link:hover { transform: none; }
 .voice-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .voice-legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 .voice-legend i.you { background: var(--accent); }
+
+/* ---------- auth ---------- */
+.auth { display: grid; justify-items: center; padding-top: 32px; }
+.auth-card { width: 100%; max-width: 420px; }
+.auth-card input:not(.code-input) { width: 100%; }
+.auth-card .code-input { width: 100%; }
+.auth-error { color: var(--rec); font-weight: 600; font-size: 0.92rem; }
+.auth-footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; font-size: 0.9rem; }
+.password { display: flex; gap: 6px; }
+.password input { flex: 1; }
+.small-spinner { width: 16px; height: 16px; border-width: 2px; }
+.user-menu { position: relative; }
+.user-btn { gap: 8px; padding: 4px 10px 4px 4px; }
+.user-btn .avatar { width: 28px; height: 28px; font-size: 0.8rem; }
+.user-name { max-width: 14ch; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 520px) { .user-name { display: none; } }
+.menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; display: grid; gap: 10px; padding: 12px; min-width: 200px; box-shadow: 0 10px 30px rgb(0 0 0 / 0.25); }

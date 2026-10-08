@@ -7,7 +7,9 @@ import { useT } from "./i18n";
 import { useApp } from "./state/app";
 import { hasAnyRecording } from "./state/game";
 import { Editor } from "./views/Editor";
+import { Auth } from "./views/Auth";
 import { Home } from "./views/Home";
+import { UserMenu } from "./components/UserMenu";
 import { Online } from "./views/Online";
 import { leaveRoom, useRoom } from "./net/room";
 import { useRoomDirector } from "./state/online";
@@ -73,6 +75,7 @@ export function App() {
         <button className="wordmark" onClick={home} aria-label={t.header.home}>Dubbo<i>.</i></button>
         <div className="spacer" />
         {view.name === "home" && <LangSwitch />}
+        <UserMenu />
         <button className="small ghost icon-btn" onClick={() => setSettingsOpen(true)} aria-label={t.header.settings} title={t.header.settings}><Icon name="gear" size={20} /></button>
         <button className="small ghost icon-btn" onClick={toggleTheme} aria-label={t.header.theme} title={t.header.theme}><Icon name="contrast" size={20} /></button>
       </header>
@@ -81,6 +84,7 @@ export function App() {
         {view.name === "editor" && <Editor packId={view.packId} />}
         {view.name === "record" && game && <Record />}
         {view.name === "screen" && game && <Screening />}
+        {view.name === "auth" && <Auth mode={view.mode} />}
         {view.name === "online" && <Online code={view.code} packId={view.packId} intent={view.intent} />}
       </main>
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}

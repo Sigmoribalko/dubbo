@@ -60,6 +60,28 @@ src/
 Сдвиг высоты (бурундук, великан, демон) сделан на двух скользящих отводах линии задержки с окнами sin²
 (подход Chris Wilson «Jungle»). Задержка около 30 мс, и микшер её компенсирует, запуская такие дорожки раньше.
 
+## Аккаунты (Supabase)
+
+Регистрация по email и паролю с кодом подтверждения из письма, вход, сброс пароля кодом (`src/lib/auth/`, `src/views/Auth.tsx`).
+Сервер аккаунтов — бесплатный проект [Supabase](https://supabase.com). Пока он не подключён, кнопка «Войти» скрыта.
+
+Подключение:
+
+1. Создайте проект на supabase.com.
+2. **Authentication → Sign In / Providers → Email**: включены «Enable Email provider» и «Confirm email».
+3. **Authentication → Emails → Templates**: в шаблонах **Confirm signup** и **Reset password** вставьте код
+   `{{ .Token }}` (например: «Ваш код подтверждения: {{ .Token }}»), чтобы в письме был код, а не только ссылка.
+4. **Authentication → Emails → SMTP Settings**: подключите свой почтовый сервис (Resend, Brevo, Mailgun…).
+   Встроенная почта Supabase отправляет письма только адресам участников проекта и с жёстким лимитом,
+   для настоящих пользователей нужен свой SMTP.
+5. **Project Settings → API**: возьмите *Project URL* и ключ *anon public* и задайте их как переменные репозитория:
+   ```bash
+   gh variable set SUPABASE_URL --body "https://xxxx.supabase.co"
+   gh variable set SUPABASE_ANON_KEY --body "eyJ..."
+   ```
+   Ключ *anon* предназначен для браузера и публичен. Ключ *service_role* никуда не вставляйте.
+   Для локальной разработки те же значения кладутся в `.env.local` как `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY`.
+
 ## Сеть
 
 Онлайн-режим работает без своего сервера: устройства соединяются напрямую по WebRTC (`src/net/`).

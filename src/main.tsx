@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { initAuth } from "./lib/auth/auth";
 import { store } from "./lib/store";
 import { notify } from "./state/app";
 import "./styles/tokens.css";
@@ -9,6 +10,7 @@ import "./styles/components.css";
 import "./styles/motion.css";
 
 store.onWarning = notify;
+initAuth();
 
 if (import.meta.env.DEV) {
   // Handles for poking at the app from the devtools console.

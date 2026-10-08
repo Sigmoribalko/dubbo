@@ -6,7 +6,8 @@ export type View =
   | { name: "editor"; packId: string }
   | { name: "record" }
   | { name: "screen" }
-  | { name: "online"; code?: string; packId?: string; intent?: "create" | "join" | "find" };
+  | { name: "online"; code?: string; packId?: string; intent?: "create" | "join" | "find" }
+  | { name: "auth"; mode?: "signin" | "signup" };
 
 interface Toast { id: number; text: string }
 

@@ -8,10 +8,15 @@ import {
   onlinePlayers, pickRole, randomizeRoles, resetRoles, useRoom, type Player, type Snapshot,
 } from "../net/room";
 import { findRooms, joinable, type FoundRoom } from "../net/finder";
+import { displayName, useAuth } from "../lib/auth/auth";
 import { notify, useApp } from "../state/app";
 
 const NAME_KEY = "dubl-name";
-const loadName = () => { try { return localStorage.getItem(NAME_KEY) ?? ""; } catch { return ""; } };
+const loadName = () => {
+  const account = displayName(useAuth.getState().user);
+  if (account) return account;
+  try { return localStorage.getItem(NAME_KEY) ?? ""; } catch { return ""; }
+};
 const saveName = (n: string) => { try { localStorage.setItem(NAME_KEY, n); } catch { /* private mode */ } };
 
 type Intent = "create" | "join" | "find";
