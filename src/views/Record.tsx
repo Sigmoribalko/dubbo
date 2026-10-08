@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Band } from "../components/Band";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { beep } from "../components/confetti";
 import { EffectPicker } from "../components/EffectPicker";
 import { MicMeter } from "../components/MicMeter";
 import { useAnimationFrame } from "../components/useAnimationFrame";
 import { VideoErrorModal } from "../components/VideoErrorModal";
+import { VoiceTrack } from "../components/VoiceTrack";
+import { characterEnvelope, ENV_RATE, recordingEnvelope, type Envelope } from "../lib/audio/envelope";
 import { useT } from "../i18n";
 import type { EffectId } from "../lib/audio/effects";
 import { decodeBlob, routeVideo, unlockAudio, VideoMixer } from "../lib/audio/engine";
-import { getMic, hasMic, pickMime, setMonitor } from "../lib/audio/mic";
+import { getMic, hasMic, micRms, pickMime, setMonitor } from "../lib/audio/mic";
 import { sleep } from "../lib/util";
 import { roundTakes, setTakeEffect, submitTake, useRoom } from "../net/room";
 import { notify, useApp, useGame } from "../state/app";
@@ -50,6 +51,33 @@ export function Record() {
   const submittedCount = castPlayers.filter((p) => p.submitted).length;
 
   const time = useCallback(() => video.current?.currentTime ?? 0, []);
+
+  // Timeline length: the video's own duration once known, else what the lines cover.
+  const [videoDuration, setVideoDuration] = useState(0);
+  const duration = Math.max(videoDuration, game.scene.duration, ...game.scene.lines.map((l) => l.end + 1));
+  const myLines = useMemo(() => game.scene.lines.filter((l) => l.roleId === roleId), [game.scene.lines, roleId]);
+
+  // How loud the character speaks over time (measured once per scene and role).
+  const [reference, setReference] = useState<Envelope | null>(null);
+  useEffect(() => {
+    let live = true;
+    characterEnvelope({ scene: game.scene, roleId, clips: game.clips, hasBackingTrack: !!game.bg, duration })
+      .then((env) => { if (live) setReference(env); });
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game.scene, roleId, Math.round(duration)]);
+
+  // Your voice: drawn live while recording, then from the finished take.
+  const liveLevels = useRef<Float32Array | null>(null);
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+  useAnimationFrame(() => {
+    const v = video.current, levels = liveLevels.current;
+    if (!v || !levels || phaseRef.current !== "rec" || v.paused) return;
+    const i = Math.floor(v.currentTime * ENV_RATE);
+    if (i < levels.length) levels[i] = Math.max(levels[i], micRms());
+  });
+  const mine = useMemo(() => (recorded ? recordingEnvelope(recorded.buffer, recorded.offset, duration) : null), [recorded, duration]);
   const dropMixer = () => { mixer.current?.destroy(); mixer.current = null; };
   const rewind = () => {
     const v = video.current;
@@ -112,6 +140,7 @@ export function Record() {
     rec.start(250);
     await started;
     const t0 = performance.now();
+    liveLevels.current = new Float32Array(Math.ceil(duration * ENV_RATE));
     setPhase("rec");
 
     // While you record, your character's original voice is silenced; everyone else stays as a cue.
@@ -133,6 +162,7 @@ export function Record() {
     dropMixer();
     if (session.current === s) session.current = null;
 
+    liveLevels.current = null;
     if (s.cancelled || t1 == null || !chunks.length) { setPhase("idle"); return; }
     const blob = new Blob(chunks, { type: rec.mimeType || mime || "audio/webm" });
     try {
@@ -220,7 +250,7 @@ export function Record() {
       </div>
 
       <div className={"stage" + (phase === "rec" ? " recording" : "")}>
-        <video ref={video} src={game.videoUrl} playsInline preload="auto" onError={() => setVideoError(true)} />
+        <video ref={video} src={game.videoUrl} playsInline preload="auto" onError={() => setVideoError(true)} onLoadedMetadata={(e) => { const d = e.currentTarget.duration; if (isFinite(d)) setVideoDuration(d); }} />
         <div className="tally">REC</div>
         {effect !== "none" && <div className="fx-badge">{t.effects[effect][0]}</div>}
         {count != null && <div className="countdown"><span key={count}>{count}</span></div>}
@@ -228,7 +258,15 @@ export function Record() {
       </div>
 
       <Caption lines={game.scene.lines} roles={game.scene.roles} focusRoleId={phase === "listen" ? null : roleId} time={time} />
-      <Band lines={game.scene.lines} roles={game.scene.roles} duration={game.scene.duration} focusRoleId={phase === "listen" ? null : roleId} time={time} />
+      <VoiceTrack
+        reference={reference}
+        mine={mine}
+        live={liveLevels}
+        lines={myLines}
+        color={role?.color ?? "#f2a516"}
+        time={time}
+        labels={{ character: t.record.trackCharacter(role?.name ?? ""), you: t.record.trackYou, measuring: t.record.trackMeasuring }}
+      />
 
       <div className="row">
         {phase === "count" && <button className="small" onClick={stop}>{t.common.cancel}</button>}
@@ -247,7 +285,8 @@ export function Record() {
       {micReady && <MicMeter />}
       {sent && <p><b>{t.online.waitOthers(submittedCount, castPlayers.length)}</b></p>}
       <p className="muted fine">
-        {sent ? t.online.sentHint : recorded ? t.record.hintDone : hearsOthers ? t.record.hintHear : t.record.hintSolo}
+        {sent ? t.online.sentHint : recorded ? t.record.hintDone : hearsOthers ? t.record.hintHear : t.record.hintSolo}{" "}
+        {t.record.trackHint}
       </p>
 
       <section className="panel stack" aria-labelledby="fx-h">

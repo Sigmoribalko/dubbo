@@ -210,3 +210,11 @@ button.link:hover { transform: none; }
 }
 .icon-btn svg { display: block; }
 .ln-time button svg, .ln-acts button svg { display: block; }
+
+/* ---------- voice loudness track ---------- */
+.voice-track { display: grid; gap: 6px; }
+.voice-track canvas { display: block; width: 100%; height: 110px; background: var(--film); border-radius: var(--r-sm); }
+.voice-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.82rem; color: var(--muted); }
+.voice-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.voice-legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.voice-legend i.you { background: var(--accent); }

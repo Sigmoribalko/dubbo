@@ -90,14 +90,17 @@ export const useMicState = {
 };
 
 const buf = new Float32Array(1024);
-/** Current (post-gain) mic level, 0…1. */
-export function micLevel(): number {
+/** Current (post-gain) mic loudness as RMS amplitude. */
+export function micRms(): number {
   if (!mic) return 0;
   mic.analyser.getFloatTimeDomainData(buf);
   let sum = 0;
   for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
-  return Math.min(1, Math.sqrt(sum / buf.length) * 4.5);
+  return Math.sqrt(sum / buf.length);
 }
+
+/** Current (post-gain) mic level, 0…1, for the meter. */
+export const micLevel = () => Math.min(1, micRms() * 4.5);
 
 export async function listMics(): Promise<MediaDeviceInfo[]> {
   try {
