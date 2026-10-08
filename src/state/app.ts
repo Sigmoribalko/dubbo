@@ -3,6 +3,7 @@ import type { Game } from "./game";
 
 export type View =
   | { name: "home" }
+  | { name: "packs" }
   | { name: "editor"; packId: string }
   | { name: "record" }
   | { name: "screen" }

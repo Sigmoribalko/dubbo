@@ -64,6 +64,15 @@ function Entry({ initialCode, intent, error }: { initialCode?: string; intent?: 
     fn(n);
   };
 
+  // Known name + a clear intent: no need to ask again, go straight in.
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current || error || !name.trim()) return;
+    if (initialCode && normalizeCode(initialCode).length === 5) { started.current = true; withName((n) => joinRoom(initialCode, n))(); }
+    else if (intent === "create") { started.current = true; withName((n) => createRoom(n))(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="wrap stack">
       <div>

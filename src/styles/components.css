@@ -1,5 +1,5 @@
 /* ---------- header ---------- */
-.topbar { display: flex; align-items: center; gap: 12px; padding: 12px 16px; max-width: 1000px; margin: 0 auto; }
+.topbar { display: flex; align-items: center; gap: 10px; }
 .wordmark { font: 900 1.4rem var(--font-display); letter-spacing: -0.02em; background: none; border: 0; padding: 0; color: var(--ink); }
 .wordmark i { font-style: normal; color: var(--rec); }
 
@@ -235,3 +235,177 @@ button.link:hover { transform: none; }
 .user-name { max-width: 14ch; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 520px) { .user-name { display: none; } }
 .menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; display: grid; gap: 10px; padding: 12px; min-width: 200px; box-shadow: 0 10px 30px rgb(0 0 0 / 0.25); }
+
+/* =====================================================================
+   App shell: top bar, navigation
+   ===================================================================== */
+.topbar {
+  position: sticky; top: 0; z-index: 20;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+  max-width: none; padding: 10px max(16px, calc((100vw - 1000px) / 2 + 16px));
+}
+.top-nav { display: flex; gap: 4px; margin-left: 12px; }
+.top-nav button { border: 0; background: transparent; color: var(--muted); padding: 8px 14px; }
+.top-nav button:hover { color: var(--ink); transform: none; }
+.top-nav button.on { background: var(--panel); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--line); }
+
+.bottom-nav { display: none; }
+
+/* =====================================================================
+   Home
+   ===================================================================== */
+.home .hero { padding: 24px 0 4px; }
+.home .hero h1 { max-width: 14ch; }
+.home .hero p { margin-top: 14px; }
+
+.mode-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.mode-card {
+  position: relative; overflow: hidden; isolation: isolate;
+  display: grid; align-content: start; justify-items: start; gap: 10px;
+  min-height: 260px; padding: 26px; border-radius: 26px; border: 0; text-align: left; white-space: normal;
+  font: inherit; cursor: default;
+}
+.mode-card::after {
+  content: ""; position: absolute; z-index: -1; border-radius: 50%;
+  width: 260px; height: 260px; right: -70px; bottom: -110px; opacity: 0.22;
+}
+.mode-find { background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+.mode-find::after { background: var(--accent-ink); }
+.mode-find:hover { transform: translateY(-3px); box-shadow: 0 18px 40px color-mix(in srgb, var(--accent) 35%, transparent); }
+.mode-friends { background: var(--rec); color: #fff; }
+.mode-friends::after { background: #fff; width: 200px; height: 200px; right: -60px; bottom: -90px; opacity: 0.14; }
+.mode-kicker { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.7; }
+.mode-title { font: 900 clamp(1.9rem, 5vw, 2.6rem) var(--font-display); letter-spacing: -0.03em; line-height: 1; margin: 0; }
+.mode-text { max-width: 34ch; font-size: 0.98rem; opacity: 0.85; }
+.mode-cta { margin-top: auto; padding-top: 18px; font: 700 1.05rem var(--font-display); }
+.code-form { display: flex; gap: 8px; width: 100%; max-width: 360px; margin-top: 6px; }
+.mode-friends .code-input { background: rgb(255 255 255 / 0.95); color: #161614; border-color: transparent; }
+.mode-friends .code-input::placeholder { color: #8b8a84; letter-spacing: 0.08em; }
+button.dark { background: #161614; color: #fff; border-color: #161614; }
+button.dark:disabled { opacity: 0.55; }
+button.link.on-color { color: #fff; font-weight: 700; margin-top: 4px; }
+
+.section-kicker { font: 700 0.8rem var(--font-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+.home .steps { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.home .steps li { display: grid; gap: 4px; padding: 16px 16px 16px 60px; background: var(--panel); border: 1.5px solid var(--line); border-radius: var(--r-lg); }
+.home .steps li::before { left: 16px; top: 16px; }
+
+/* =====================================================================
+   Packs
+   ===================================================================== */
+.page-head { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: end; justify-content: space-between; }
+.page-head p { margin-top: 6px; max-width: 52ch; }
+.pack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.pack-card { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; gap: 12px 14px; padding: 16px; background: var(--panel); border: 1.5px solid var(--line); border-radius: var(--r-lg); }
+.pack-cover { grid-row: span 2; width: 56px; height: 56px; border-radius: 14px; display: grid; place-items: center; background: var(--film); color: var(--accent); }
+.pack-body h3 { font: 700 1.02rem var(--font-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pack-body p { margin-top: 2px; }
+.pack-actions { display: flex; gap: 8px; align-items: center; }
+.empty-state { padding: 28px; border: 1.5px dashed var(--line); border-radius: var(--r-lg); text-align: center; }
+
+/* ---------- menus ---------- */
+.menu-wrap { position: relative; }
+.menu { position: absolute; top: calc(100% + 6px); z-index: 30; display: grid; gap: 4px; padding: 6px; min-width: 210px; box-shadow: 0 12px 34px rgb(0 0 0 / 0.28); }
+.menu.right { right: 0; }
+.menu.left { left: 0; }
+.menu-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; justify-content: flex-start;
+  border: 0; background: transparent; padding: 10px 12px; border-radius: 10px; font: 600 0.92rem var(--font-body); color: var(--ink);
+}
+.menu-item:hover { background: var(--bg); transform: none; }
+.menu-item.danger { color: var(--rec); }
+button.icon-only { width: 36px; height: 36px; padding: 0; }
+
+/* ---------- segmented control ---------- */
+.segmented { grid-column: 2 / -1; display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border: 1.5px solid var(--line); border-radius: 999px; background: var(--bg); justify-self: start; }
+.segmented button { border: 0; background: transparent; padding: 6px 12px; font-size: 0.85rem; color: var(--muted); }
+.segmented button.on { background: var(--ink); color: var(--bg); }
+.segmented button:hover:not(.on) { color: var(--ink); transform: none; }
+
+/* =====================================================================
+   Phones
+   ===================================================================== */
+@media (max-width: 720px) {
+  .top-nav { display: none; }
+  .topbar { padding: 8px 12px; padding-top: max(8px, env(safe-area-inset-top)); }
+  .wordmark { font-size: 1.25rem; }
+
+  .bottom-nav {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 25;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--panel) 90%, transparent);
+    backdrop-filter: saturate(1.4) blur(16px); -webkit-backdrop-filter: saturate(1.4) blur(16px);
+    border-top: 1px solid var(--line);
+  }
+  .bottom-nav button { flex-direction: column; gap: 3px; border: 0; background: transparent; padding: 6px 0; border-radius: 12px; color: var(--muted); font-size: 0.72rem; min-height: 52px; }
+  .bottom-nav button.on { color: var(--ink); }
+  .bottom-nav button.on svg { color: var(--accent-ink); background: var(--accent); border-radius: 999px; padding: 3px 14px; box-sizing: content-box; }
+  .bottom-nav button:hover, .bottom-nav button:active { transform: none; }
+  .app:not(.in-game) main { padding-bottom: calc(86px + env(safe-area-inset-bottom)); }
+
+  .wrap { padding: 12px 14px; }
+  .stack { gap: 14px; }
+  .home .hero { padding-top: 10px; }
+  .hero h1 { font-size: clamp(1.9rem, 9.6vw, 2.8rem); }
+  /* Settings live in the bottom bar; the top-bar gear only shows mid-game. */
+  .app:not(.in-game) .topbar .icon-btn { display: none; }
+  .hero p { font-size: 0.98rem; }
+  .mode-cards { grid-template-columns: 1fr; gap: 12px; }
+  .mode-card { min-height: 0; padding: 22px; border-radius: 22px; }
+  .mode-cta { padding-top: 6px; }
+  .code-form { max-width: none; }
+  .code-form .code-input { min-width: 0; }
+
+  .panel { padding: 14px; border-radius: 16px; }
+  .grid2 { gap: 12px; }
+  .pack-grid { grid-template-columns: 1fr; }
+
+  /* Record: big thumb-reachable controls pinned to the bottom. */
+  .rec-controls {
+    position: sticky; bottom: 0; z-index: 15; margin: 0 -14px; padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid var(--line);
+  }
+  .rec-controls button.rec { flex: 1; }
+  .rec-controls .spacer { display: none; }
+  .rec-controls button { flex: 1; }
+  .voice-track canvas { height: 92px; }
+  .caption { min-height: 2.8em; font-size: 1.05rem; }
+
+  /* Effects become a swipeable strip. */
+  .fx-grid { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 8px; margin: 0 -14px; padding: 2px 14px 6px; scrollbar-width: none; }
+  .fx-grid::-webkit-scrollbar { display: none; }
+  .fx { flex: 0 0 132px; scroll-snap-align: start; }
+
+  .role-grid { grid-template-columns: repeat(2, 1fr); }
+  .invite { gap: 10px; }
+  .room-row { gap: 8px; }
+  .room-row button { width: 100%; }
+  .seg label { min-width: 0; }
+
+  /* Dialogs slide up from the bottom as sheets. */
+  .modal { place-items: end stretch; padding: 0; }
+  .modal > .panel { max-width: none; border-radius: 22px 22px 0 0; max-height: 92vh; padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
+  .toast { bottom: calc(92px + env(safe-area-inset-bottom)); }
+  .in-game .toast { bottom: calc(84px + env(safe-area-inset-bottom)); }
+}
+
+/* Touch screens: comfortable targets, and no zoom-on-focus in iOS Safari. */
+@media (pointer: coarse) {
+  button, .btn { min-height: 44px; }
+  button.small, .btn.small { min-height: 38px; }
+  .lang button, .segmented button, .chip button, .bottom-nav button { min-height: 0; }
+  input, select { font-size: 16px; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mode-card { transition: transform 0.25s var(--ease-out), box-shadow 0.25s; }
+  .mode-cards > :nth-child(1) { animation: rise 0.6s var(--ease-out) both 0.1s; }
+  .mode-cards > :nth-child(2) { animation: rise 0.6s var(--ease-out) both 0.18s; }
+}
+
+@media (pointer: coarse) { .desktop-only { display: none; } }

@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from "react";
-import { useT } from "../i18n";
+import { useLang, useT, type Lang } from "../i18n";
+import { useTheme, type ThemeMode } from "../state/theme";
 import { unlockAudio } from "../lib/audio/engine";
 import { getMic, hasMic, listMics, useMicState } from "../lib/audio/mic";
 import { notify } from "../state/app";
@@ -94,10 +95,39 @@ export function SettingsModal({ onClose }: { onClose(): void }) {
         <Slider k="monitor" label={s.monitor} />
       </section>
 
+      <InterfaceSettings />
+
       <section className="settings-group" aria-label={s.other}>
         <h4>{s.other}</h4>
         <Slider k="ui" label={s.ui} />
       </section>
     </Modal>
+  );
+}
+
+function Segmented<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: Array<[T, string]>; onChange(v: T): void }) {
+  return (
+    <div className="slider">
+      <span>{label}</span>
+      <div className="segmented" role="radiogroup" aria-label={label}>
+        {options.map(([v, text]) => (
+          <button key={v} role="radio" aria-checked={value === v} className={value === v ? "on" : ""} onClick={() => onChange(v)}>{text}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function InterfaceSettings() {
+  const t = useT();
+  const s = t.settings;
+  const { lang, setLang } = useLang();
+  const { mode, setMode } = useTheme();
+  return (
+    <section className="settings-group" aria-label={s.interface}>
+      <h4>{s.interface}</h4>
+      <Segmented<Lang> label={s.language} value={lang} options={[["ru", "Русский"], ["en", "English"]]} onChange={setLang} />
+      <Segmented<ThemeMode> label={s.theme} value={mode} options={[["auto", s.themeAuto], ["light", s.themeLight], ["dark", s.themeDark]]} onChange={setMode} />
+    </section>
   );
 }

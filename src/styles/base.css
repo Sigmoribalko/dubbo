@@ -64,6 +64,8 @@ input[type="file"] { display: none; }
 .wrap { max-width: 1000px; margin: 0 auto; padding: 16px; }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .stack { display: grid; gap: 16px; }
+/* Grid items may shrink below their content (wide scrollers must scroll, not stretch the page). */
+.stack > *, .grid2 > * { min-width: 0; }
 .spacer { flex: 1; }
 .muted { color: var(--muted); }
 .fine { font-size: 0.88rem; }

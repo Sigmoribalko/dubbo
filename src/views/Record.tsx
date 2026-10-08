@@ -268,7 +268,7 @@ export function Record() {
         labels={{ character: t.record.trackCharacter(role?.name ?? ""), you: t.record.trackYou, measuring: t.record.trackMeasuring }}
       />
 
-      <div className="row">
+      <div className="row rec-controls">
         {phase === "count" && <button className="small" onClick={stop}>{t.common.cancel}</button>}
         {phase === "rec" && <button className="rec" onClick={stop}>{t.record.stopRec}</button>}
         {phase === "idle" && !recorded && <button className="rec" onClick={record}>{t.record.rec}</button>}
@@ -285,8 +285,8 @@ export function Record() {
       {micReady && <MicMeter />}
       {sent && <p><b>{t.online.waitOthers(submittedCount, castPlayers.length)}</b></p>}
       <p className="muted fine">
-        {sent ? t.online.sentHint : recorded ? t.record.hintDone : hearsOthers ? t.record.hintHear : t.record.hintSolo}{" "}
-        {t.record.trackHint}
+        {sent ? t.online.sentHint : recorded ? t.record.hintDone : hearsOthers ? t.record.hintHear : t.record.hintSolo}
+        {!recorded && <span className="desktop-only"> {t.record.spaceHint}</span>}
       </p>
 
       <section className="panel stack" aria-labelledby="fx-h">
