@@ -1,0 +1,55 @@
+@keyframes blink { 50% { opacity: 0.2; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fly {
+  0% { transform: translate(0, 0) rotate(0) scale(0.4); opacity: 1; }
+  100% { transform: translate(var(--x), var(--y)) rotate(var(--r)) scale(1); opacity: 0; }
+}
+@keyframes viewIn { from { opacity: 0; transform: translateY(14px); } }
+@keyframes fadeIn { from { opacity: 0; } }
+@keyframes popIn { from { opacity: 0; transform: translateY(16px) scale(0.96); } }
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 16px) scale(0.95); } }
+@keyframes countPop { 0% { transform: scale(1.8); opacity: 0; } 25% { transform: scale(1); opacity: 1; } 80% { opacity: 1; } 100% { transform: scale(0.7); opacity: 0; } }
+@keyframes recGlow {
+  0%, 100% { box-shadow: 0 0 0 3px var(--rec), 0 0 18px color-mix(in srgb, var(--rec) 30%, transparent); }
+  50% { box-shadow: 0 0 0 3px var(--rec), 0 0 38px color-mix(in srgb, var(--rec) 60%, transparent); }
+}
+@keyframes headPulse { 50% { box-shadow: 0 0 22px var(--rec); } }
+@keyframes capIn { from { opacity: 0; transform: translateY(6px); } }
+@keyframes bump { 50% { transform: scale(1.5); } }
+@keyframes winGlow { 50% { box-shadow: 0 0 0 2px var(--rec) inset, 0 0 30px color-mix(in srgb, var(--rec) 40%, transparent); } }
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } }
+@keyframes fresh { 0% { background: color-mix(in srgb, var(--accent) 22%, transparent); } 100% { background: transparent; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .tally::before, .spinner { animation: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .view { animation: viewIn 0.45s var(--ease-out); }
+  button, .btn, .fx { transition: transform 0.15s ease, background-color 0.2s, border-color 0.2s, box-shadow 0.2s, opacity 0.2s; }
+  button:hover:not(:disabled), .btn:hover, .fx:hover { transform: translateY(-1px); }
+  button:active:not(:disabled), .btn:active, .fx:active { transform: translateY(1px) scale(0.97); }
+  button.primary:hover:not(:disabled) { box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 35%, transparent); }
+  button.rec:hover:not(:disabled) { box-shadow: 0 6px 22px color-mix(in srgb, var(--rec) 45%, transparent); }
+  .modal { animation: fadeIn 0.2s ease; }
+  .modal > .panel { animation: popIn 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.15); }
+  .toast { animation: toastIn 0.35s var(--ease-pop); }
+  .countdown span { display: inline-block; animation: countPop 0.8s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+  .stage.recording { animation: recGlow 1.6s ease-in-out infinite; }
+  .cue { transition: opacity 0.3s, box-shadow 0.25s, transform 0.25s; }
+  .cue.now { transform: scaleY(1.08); }
+  .band-head { animation: headPulse 1.4s ease-in-out infinite; }
+  .caption .cap { animation: capIn 0.28s ease both; }
+  .vote output.bump { animation: bump 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.4); }
+  .take { transition: border-color 0.3s, box-shadow 0.3s; }
+  .take.winner { animation: winGlow 1.2s ease-in-out 3; }
+  .chip { transition: background-color 0.35s, color 0.35s, border-color 0.35s, transform 0.2s; }
+  .chip.pass.cur { transform: scale(1.06); }
+  .rise { animation: rise 0.5s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 60ms); }
+  .ln.fresh { animation: fresh 1.2s ease; }
+  .hero > * { animation: rise 0.7s var(--ease-out) both; }
+  .hero > :nth-child(2) { animation-delay: 0.08s; }
+  .hero > :nth-child(3) { animation-delay: 0.16s; }
+  .hero > :nth-child(4) { animation-delay: 0.24s; }
+  .seg label { transition: border-color 0.25s, background-color 0.25s; }
+}
