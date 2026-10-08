@@ -1,4 +1,4 @@
-import { decodeBlob, type DuckRanges, type MixTrack } from "../lib/audio/engine";
+import { decodeBlob, type DuckRanges, type MixTrack, type VideoDuck } from "../lib/audio/engine";
 import type { EffectId } from "../lib/audio/effects";
 import { store } from "../lib/store";
 import type { Pack, RecordedTrack, Role, Scene } from "../lib/types";
@@ -85,17 +85,25 @@ export function originalMix(g: Game): MixTrack[] {
 
 export const hasAnyRecording = (g: Game | null) => !!g && Object.keys(g.tracks).length > 0;
 
+const WHOLE: DuckRanges = [[0, Number.MAX_SAFE_INTEGER]];
+
 /**
- * Where the video's own soundtrack must be silent so original voices don't come through:
- * lines of the role you're recording (or of every voiced role when watching the dub),
- * plus lines the pack plays from separate clips (so they're never heard twice).
+ * How the video's own soundtrack is treated so the dubbed voice never comes through.
+ * With a backing track (music and effects without voices) the video is silent and only the
+ * hero's voice is missing. Otherwise centred dialogue is removed during the lines of the role
+ * you're recording (or every voiced role when watching), and during lines the pack plays from
+ * separate clips, so no voice is heard twice.
  */
-export function voicedRanges(g: Game, onlyRoleId?: string): DuckRanges {
-  return g.scene.lines
+export function videoDuck(g: Game, onlyRoleId?: string): VideoDuck {
+  if (g.bg) return { ranges: WHOLE, mode: "mute" };
+  const ranges: DuckRanges = g.scene.lines
     .filter((l) => (onlyRoleId ? l.roleId === onlyRoleId : !!g.cast[l.roleId]) || (!!l.clip && !!g.clips[l.clip]))
     .map((l) => [l.start, l.end]);
+  return { ranges, mode: "voice" };
 }
 
 /** For the original version: only lines that play from separate clips. */
-export const clipRanges = (g: Game): DuckRanges =>
-  g.scene.lines.filter((l) => l.clip && g.clips[l.clip]).map((l) => [l.start, l.end]);
+export function originalDuck(g: Game): VideoDuck {
+  if (g.bg) return { ranges: WHOLE, mode: "mute" };
+  return { ranges: g.scene.lines.filter((l) => l.clip && g.clips[l.clip]).map((l) => [l.start, l.end]), mode: "voice" };
+}

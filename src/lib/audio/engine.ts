@@ -104,22 +104,60 @@ export function buses(): BusSet {
   return (mainBuses ??= createBuses(masterOut()));
 }
 
-const routed = new WeakMap<HTMLMediaElement, GainNode>();
+interface VideoRoute {
+  /** The soundtrack as is. */
+  full: GainNode;
+  /** Left minus right: removes what's centred (film dialogue), keeps stereo music and effects. */
+  side: GainNode;
+}
+const routed = new WeakMap<HTMLMediaElement, VideoRoute>();
+
 /**
  * Route a video element's own soundtrack through the "video" bus.
  * (`element.volume` is read-only on iOS; Web Audio gain works everywhere.)
- * The per-element gain in between lets a mixer silence original voices while they're being dubbed.
+ * Two parallel paths let a mixer swap to a "voice removed" version during dubbed lines.
  */
 export function routeVideo(el: HTMLMediaElement, out: BusSet = buses()) {
   if (routed.has(el)) return;
   const c = audioCtx();
-  const duck = c.createGain();
-  c.createMediaElementSource(el).connect(duck).connect(out.input("video"));
-  routed.set(el, duck);
+  const src = c.createMediaElementSource(el);
+  // Force stereo so mono clips give L = R (and the side signal correctly cancels to silence).
+  const stereo = c.createGain();
+  stereo.channelCount = 2;
+  stereo.channelCountMode = "explicit";
+  stereo.channelInterpretation = "speakers";
+  src.connect(stereo);
+
+  const full = c.createGain();
+  stereo.connect(full).connect(out.input("video"));
+
+  const split = c.createChannelSplitter(2);
+  const invertRight = c.createGain();
+  invertRight.gain.value = -1;
+  const diff = c.createGain();
+  diff.channelCount = 1;
+  diff.channelCountMode = "explicit";
+  stereo.connect(split);
+  split.connect(diff, 0);
+  split.connect(invertRight, 1);
+  invertRight.connect(diff);
+  const side = c.createGain();
+  side.gain.value = 0;
+  diff.connect(side).connect(out.input("video"));
+
+  routed.set(el, { full, side });
 }
 
-/** Time ranges (seconds of video) where the video's own soundtrack is muted. */
+/** The side signal plays a one-sided sound in both ears; trim it so music doesn't jump in level. */
+const SIDE_LEVEL = 0.6;
+
+/** Time ranges (seconds of video) where the video's soundtrack is changed. */
 export type DuckRanges = Array<[number, number]>;
+export interface VideoDuck {
+  ranges: DuckRanges;
+  /** "voice": swap to the voice-removed soundtrack; "mute": silence it (a backing track replaces it). */
+  mode: "voice" | "mute";
+}
 /** Fade a little before and after each line so the original voice never peeks through. */
 const DUCK_PAD = 0.15;
 
@@ -146,8 +184,8 @@ const DRIFT_TOLERANCE = 0.06;
  */
 export interface MixerOptions {
   out?: BusSet;
-  /** Mute the video's soundtrack during these ranges (the lines being dubbed). */
-  duck?: DuckRanges;
+  /** Remove original voices from the video's soundtrack during these ranges (the lines being dubbed). */
+  duck?: VideoDuck;
 }
 
 export class VideoMixer {
@@ -158,15 +196,15 @@ export class VideoMixer {
   private readonly off: Array<() => void> = [];
 
   private readonly out: BusSet;
-  private readonly duck: DuckRanges;
+  private readonly duck: VideoDuck | null;
   private duckTimer = 0;
   private ducked = false;
 
   constructor(private video: HTMLVideoElement, tracks: MixTrack[], opts: MixerOptions = {}) {
     this.out = opts.out ?? buses();
-    this.duck = opts.duck ?? [];
+    this.duck = opts.duck?.ranges.length ? opts.duck : null;
     this.voices = tracks.map((t) => this.makeVoice(t));
-    if (this.duck.length) {
+    if (this.duck) {
       this.duckTimer = window.setInterval(() => this.updateDuck(), 30);
       this.updateDuck();
     }
@@ -182,13 +220,19 @@ export class VideoMixer {
   }
 
   private updateDuck() {
-    const g = routed.get(this.video);
-    if (!g) return;
+    const route = routed.get(this.video);
+    if (!route || !this.duck) return;
     const t = this.video.currentTime;
-    const inLine = this.duck.some(([a, b]) => t >= a - DUCK_PAD && t <= b + DUCK_PAD);
+    const inLine = this.duck.ranges.some(([a, b]) => t >= a - DUCK_PAD && t <= b + DUCK_PAD);
     if (inLine === this.ducked) return;
     this.ducked = inLine;
-    g.gain.setTargetAtTime(inLine ? 0 : 1, this.ctx.currentTime, 0.015);
+    this.setRoute(route, inLine ? 0 : 1, inLine && this.duck.mode === "voice" ? SIDE_LEVEL : 0);
+  }
+
+  private setRoute(route: VideoRoute, full: number, side: number) {
+    const now = this.ctx.currentTime;
+    route.full.gain.setTargetAtTime(full, now, 0.015);
+    route.side.gain.setTargetAtTime(side, now, 0.015);
   }
 
   private makeVoice(track: MixTrack): Voice {
@@ -252,8 +296,8 @@ export class VideoMixer {
   destroy() {
     this.stop();
     clearInterval(this.duckTimer);
-    const g = routed.get(this.video);
-    if (g && this.ducked) g.gain.setTargetAtTime(1, this.ctx.currentTime, 0.015);
+    const route = routed.get(this.video);
+    if (route && this.ducked) this.setRoute(route, 1, 0);
     this.off.forEach((f) => f());
     for (const v of this.voices) { v.chain.dispose(); v.level.disconnect(); }
     this.voices = [];

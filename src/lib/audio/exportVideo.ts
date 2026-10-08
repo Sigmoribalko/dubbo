@@ -1,5 +1,5 @@
 import { saveFile } from "../download";
-import { audioCtx, createBuses, loadWorklets, masterOut, routeVideo, VideoMixer, type DuckRanges, type MixTrack } from "./engine";
+import { audioCtx, createBuses, loadWorklets, masterOut, routeVideo, VideoMixer, type MixTrack, type VideoDuck } from "./engine";
 import { pickMime } from "./mic";
 
 export interface VideoExportJob {
@@ -29,7 +29,7 @@ export function exportVideo(opts: {
   src: string;
   tracks: MixTrack[];
   /** Mute the video's own voices during these ranges. */
-  duck?: DuckRanges;
+  duck?: VideoDuck;
   fileName: string;
   onProgress(current: number, total: number): void;
 }): VideoExportJob {

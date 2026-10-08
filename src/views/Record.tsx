@@ -12,7 +12,7 @@ import { getMic, hasMic, pickMime, setMonitor } from "../lib/audio/mic";
 import { sleep } from "../lib/util";
 import { roundTakes, setTakeEffect, submitTake, useRoom } from "../net/room";
 import { notify, useApp, useGame } from "../state/app";
-import { castRoles, effectOf, mixFor, voicedRanges } from "../state/game";
+import { castRoles, effectOf, mixFor, videoDuck } from "../state/game";
 import { Caption } from "./Caption";
 
 type Phase = "idle" | "count" | "rec" | "listen";
@@ -115,7 +115,7 @@ export function Record() {
     setPhase("rec");
 
     // While you record, your character's original voice is silenced; everyone else stays as a cue.
-    mixer.current = new VideoMixer(v, mixFor(game, roleId), { duck: voicedRanges(game, roleId) });
+    mixer.current = new VideoMixer(v, mixFor(game, roleId), { duck: videoDuck(game, roleId) });
     const playing = new Promise<number>((r) => v.addEventListener("playing", () => r(performance.now()), { once: true }));
     const onEnded = () => { if (rec.state !== "inactive") rec.stop(); };
     v.addEventListener("ended", onEnded, { once: true });
@@ -158,7 +158,7 @@ export function Record() {
     await unlockAudio();
     dropMixer();
     rewind();
-    mixer.current = new VideoMixer(v, mixFor(game), { duck: voicedRanges(game) });
+    mixer.current = new VideoMixer(v, mixFor(game), { duck: videoDuck(game) });
     setPhase("listen");
     v.addEventListener("ended", () => setPhase((p) => (p === "listen" ? "idle" : p)), { once: true });
     v.play().catch(() => setPhase("idle"));
@@ -173,7 +173,7 @@ export function Record() {
     touch();
     if (sent) setTakeEffect(roleId, id);
     // Re-style what is playing right now.
-    if (phase === "listen" && video.current) { dropMixer(); mixer.current = new VideoMixer(video.current, mixFor(game), { duck: voicedRanges(game) }); }
+    if (phase === "listen" && video.current) { dropMixer(); mixer.current = new VideoMixer(video.current, mixFor(game), { duck: videoDuck(game) }); }
   };
 
   const redo = () => {
