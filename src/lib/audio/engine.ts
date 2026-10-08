@@ -104,16 +104,24 @@ export function buses(): BusSet {
   return (mainBuses ??= createBuses(masterOut()));
 }
 
-const routed = new WeakSet<HTMLMediaElement>();
+const routed = new WeakMap<HTMLMediaElement, GainNode>();
 /**
  * Route a video element's own soundtrack through the "video" bus.
  * (`element.volume` is read-only on iOS; Web Audio gain works everywhere.)
+ * The per-element gain in between lets a mixer silence original voices while they're being dubbed.
  */
 export function routeVideo(el: HTMLMediaElement, out: BusSet = buses()) {
   if (routed.has(el)) return;
-  routed.add(el);
-  audioCtx().createMediaElementSource(el).connect(out.input("video"));
+  const c = audioCtx();
+  const duck = c.createGain();
+  c.createMediaElementSource(el).connect(duck).connect(out.input("video"));
+  routed.set(el, duck);
 }
+
+/** Time ranges (seconds of video) where the video's own soundtrack is muted. */
+export type DuckRanges = Array<[number, number]>;
+/** Fade a little before and after each line so the original voice never peeks through. */
+const DUCK_PAD = 0.15;
 
 export interface MixTrack {
   buffer: AudioBuffer;
@@ -136,6 +144,12 @@ const DRIFT_TOLERANCE = 0.06;
  * Plays audio buffers in lock-step with a <video>. Sources are scheduled sample-accurately
  * on the AudioContext clock and re-anchored whenever the video seeks, stalls or drifts.
  */
+export interface MixerOptions {
+  out?: BusSet;
+  /** Mute the video's soundtrack during these ranges (the lines being dubbed). */
+  duck?: DuckRanges;
+}
+
 export class VideoMixer {
   private voices: Voice[] = [];
   private anchor: { ctx: number; video: number } | null = null;
@@ -143,8 +157,19 @@ export class VideoMixer {
   private readonly ctx = audioCtx();
   private readonly off: Array<() => void> = [];
 
-  constructor(private video: HTMLVideoElement, tracks: MixTrack[], private out: BusSet = buses()) {
+  private readonly out: BusSet;
+  private readonly duck: DuckRanges;
+  private duckTimer = 0;
+  private ducked = false;
+
+  constructor(private video: HTMLVideoElement, tracks: MixTrack[], opts: MixerOptions = {}) {
+    this.out = opts.out ?? buses();
+    this.duck = opts.duck ?? [];
     this.voices = tracks.map((t) => this.makeVoice(t));
+    if (this.duck.length) {
+      this.duckTimer = window.setInterval(() => this.updateDuck(), 30);
+      this.updateDuck();
+    }
     const on = (ev: string, fn: () => void) => {
       video.addEventListener(ev, fn);
       this.off.push(() => video.removeEventListener(ev, fn));
@@ -154,6 +179,16 @@ export class VideoMixer {
     for (const ev of ["pause", "waiting", "seeking", "ended", "emptied"]) on(ev, () => this.stop());
     on("ratechange", () => { if (!video.paused) this.start(); });
     if (!video.paused && video.readyState >= 3) this.start();
+  }
+
+  private updateDuck() {
+    const g = routed.get(this.video);
+    if (!g) return;
+    const t = this.video.currentTime;
+    const inLine = this.duck.some(([a, b]) => t >= a - DUCK_PAD && t <= b + DUCK_PAD);
+    if (inLine === this.ducked) return;
+    this.ducked = inLine;
+    g.gain.setTargetAtTime(inLine ? 0 : 1, this.ctx.currentTime, 0.015);
   }
 
   private makeVoice(track: MixTrack): Voice {
@@ -216,6 +251,9 @@ export class VideoMixer {
 
   destroy() {
     this.stop();
+    clearInterval(this.duckTimer);
+    const g = routed.get(this.video);
+    if (g && this.ducked) g.gain.setTargetAtTime(1, this.ctx.currentTime, 0.015);
     this.off.forEach((f) => f());
     for (const v of this.voices) { v.chain.dispose(); v.level.disconnect(); }
     this.voices = [];

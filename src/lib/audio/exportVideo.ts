@@ -1,5 +1,5 @@
 import { saveFile } from "../download";
-import { audioCtx, createBuses, loadWorklets, masterOut, routeVideo, VideoMixer, type MixTrack } from "./engine";
+import { audioCtx, createBuses, loadWorklets, masterOut, routeVideo, VideoMixer, type DuckRanges, type MixTrack } from "./engine";
 import { pickMime } from "./mic";
 
 export interface VideoExportJob {
@@ -28,6 +28,8 @@ export function exportVideo(opts: {
   video: HTMLVideoElement;
   src: string;
   tracks: MixTrack[];
+  /** Mute the video's own voices during these ranges. */
+  duck?: DuckRanges;
   fileName: string;
   onProgress(current: number, total: number): void;
 }): VideoExportJob {
@@ -68,7 +70,7 @@ export function exportVideo(opts: {
       v.addEventListener("loadedmetadata", () => r(), { once: true });
       v.addEventListener("error", () => j(new Error("video")), { once: true });
     });
-    mixer = new VideoMixer(v, opts.tracks, levels);
+    mixer = new VideoMixer(v, opts.tracks, { out: levels, duck: opts.duck });
     v.addEventListener("timeupdate", () => opts.onProgress(v.currentTime, v.duration));
     v.addEventListener("playing", () => {
       if (rec) return;

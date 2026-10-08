@@ -1,4 +1,4 @@
-import { decodeBlob, type MixTrack } from "../lib/audio/engine";
+import { decodeBlob, type DuckRanges, type MixTrack } from "../lib/audio/engine";
 import type { EffectId } from "../lib/audio/effects";
 import { store } from "../lib/store";
 import type { Pack, RecordedTrack, Role, Scene } from "../lib/types";
@@ -84,3 +84,18 @@ export function originalMix(g: Game): MixTrack[] {
 }
 
 export const hasAnyRecording = (g: Game | null) => !!g && Object.keys(g.tracks).length > 0;
+
+/**
+ * Where the video's own soundtrack must be silent so original voices don't come through:
+ * lines of the role you're recording (or of every voiced role when watching the dub),
+ * plus lines the pack plays from separate clips (so they're never heard twice).
+ */
+export function voicedRanges(g: Game, onlyRoleId?: string): DuckRanges {
+  return g.scene.lines
+    .filter((l) => (onlyRoleId ? l.roleId === onlyRoleId : !!g.cast[l.roleId]) || (!!l.clip && !!g.clips[l.clip]))
+    .map((l) => [l.start, l.end]);
+}
+
+/** For the original version: only lines that play from separate clips. */
+export const clipRanges = (g: Game): DuckRanges =>
+  g.scene.lines.filter((l) => l.clip && g.clips[l.clip]).map((l) => [l.start, l.end]);

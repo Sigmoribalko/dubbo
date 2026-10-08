@@ -5,7 +5,7 @@ export interface Settings {
   master: number;
   /** Players' recorded voices. */
   voices: number;
-  /** The scene video's own soundtrack (often contains the original voices, so muted by default). */
+  /** The scene video's own soundtrack. Original voices of dubbed roles are muted automatically. */
   video: number;
   /** Backing track: music and ambience without voices. */
   bg: number;
@@ -27,7 +27,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   master: 100,
   voices: 100,
-  video: 0,
+  video: 100,
   bg: 80,
   lines: 100,
   micGain: 100,

@@ -5,12 +5,12 @@ import { Modal } from "../components/Modal";
 import { VideoErrorModal } from "../components/VideoErrorModal";
 import { useT } from "../i18n";
 import { effectIcon } from "../lib/audio/effects";
-import { routeVideo, unlockAudio, VideoMixer, type MixTrack } from "../lib/audio/engine";
+import { routeVideo, unlockAudio, VideoMixer, type DuckRanges, type MixTrack } from "../lib/audio/engine";
 import { canExportVideo, exportVideo, type VideoExportJob } from "../lib/audio/exportVideo";
 import { fmtTime, prefersReducedMotion, safeFileName } from "../lib/util";
 import { hostPlayAll, hostReveal, hostToLobby, leaveRoom, onPlayAll, useRoom, vote, voteCounts } from "../net/room";
 import { notify, useApp, useGame } from "../state/app";
-import { castRoles, effectOf, mixFor, originalMix } from "../state/game";
+import { castRoles, clipRanges, effectOf, mixFor, originalMix, voicedRanges } from "../state/game";
 
 type OnScreen = "dub" | "original" | null;
 
@@ -39,7 +39,7 @@ export function Screening() {
     v.pause();
     try { v.currentTime = 0; } catch { /* not loaded yet */ }
     // Rebuilt every time so recordings that arrived since are included.
-    mixer.current = new VideoMixer(v, what === "original" ? originalMix(game) : mixFor(game));
+    mixer.current = what === "original" ? new VideoMixer(v, originalMix(game), { duck: clipRanges(game) }) : new VideoMixer(v, mixFor(game), { duck: voicedRanges(game) });
     setOnScreen(what);
     if (autoplay) v.play().catch(() => {});
   };
@@ -143,6 +143,7 @@ export function Screening() {
           title={game.scene.title}
           src={game.videoUrl}
           tracks={mixFor(game)}
+          duck={voicedRanges(game)}
           fileName={`Dubbo - ${safeFileName(game.scene.title || t.common.scene)}`}
           onDone={() => setExporting(false)}
         />
@@ -152,7 +153,7 @@ export function Screening() {
   );
 }
 
-function ExportModal(props: { title: string; src: string; tracks: MixTrack[]; fileName: string; onDone(): void }) {
+function ExportModal(props: { title: string; src: string; tracks: MixTrack[]; duck: DuckRanges; fileName: string; onDone(): void }) {
   const t = useT();
   const video = useRef<HTMLVideoElement>(null);
   const job = useRef<VideoExportJob | null>(null);
@@ -164,6 +165,7 @@ function ExportModal(props: { title: string; src: string; tracks: MixTrack[]; fi
       video: video.current,
       src: props.src,
       tracks: props.tracks,
+      duck: props.duck,
       fileName: props.fileName,
       onProgress: (cur, total) => setProgress(t.screen.exportProgress(fmtTime(cur), fmtTime(total))),
     });
