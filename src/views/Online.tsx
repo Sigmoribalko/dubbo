@@ -104,15 +104,34 @@ function Finder({ error }: { error: string | null }) {
   const [searching, setSearching] = useState(false);
   const search = useRef<{ cancel(): void } | null>(null);
 
-  const refresh = () => {
+  /** One sweep over the public slots; `fresh` clears the list first, otherwise rooms are updated in place. */
+  const sweep = (fresh: boolean) => {
     search.current?.cancel();
-    setRooms([]);
-    setSearching(true);
-    const s = findRooms((room) => setRooms((rs) => [...rs.filter((r) => r.code !== room.code), room]));
+    const seen = new Set<string>();
+    if (fresh) { setRooms([]); setSearching(true); }
+    const s = findRooms((room) => { seen.add(room.code); setRooms((rs) => [...rs.filter((r) => r.code !== room.code), room]); });
     search.current = s;
-    s.done.catch(() => {}).finally(() => { if (search.current === s) setSearching(false); });
+    return s.done.catch(() => {}).then(() => {
+      if (search.current !== s) return false;
+      setSearching(false);
+      if (!fresh) setRooms((rs) => rs.filter((r) => seen.has(r.code))); // drop rooms that went away
+      return seen.size > 0;
+    });
   };
-  useEffect(() => { refresh(); return () => search.current?.cancel(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const refresh = () => { sweep(true); };
+
+  // Keep the list live while this screen is open. A brand-new connection sometimes can't see
+  // rooms for a few seconds, so an empty first sweep is retried quickly.
+  useEffect(() => {
+    let alive = true;
+    let timer = 0;
+    const loop = async (first: boolean) => {
+      const any = await sweep(first);
+      if (alive) timer = window.setTimeout(() => loop(false), first && !any ? 2500 : 10000);
+    };
+    loop(true);
+    return () => { alive = false; clearTimeout(timer); search.current?.cancel(); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const withName = (fn: (n: string) => void) => async () => {
     const n = name.trim();
