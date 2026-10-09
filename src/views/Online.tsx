@@ -5,8 +5,9 @@ import { store } from "../lib/store";
 import type { Pack } from "../lib/types";
 import {
   capacityOf, createRoom, everyoneCast, hostCast, hostSelectScene, hostSetPublic, hostStart, hostToLobby, hostToScreening, inviteLink, joinRoom,
-  leaveRoom, normalizeCode, onlinePlayers, pickRole, randomizeRoles, useRoom, type Player, type Snapshot,
+  leaveRoom, normalizeCode, onlinePlayers, pickRole, playersNeeded, randomizeRoles, useRoom, type Player, type Snapshot,
 } from "../net/room";
+import { playableRoles } from "../state/game";
 import { FileButton } from "../components/FileButton";
 import { importFiles } from "../lib/pack/import";
 import { findRooms, joinable, type FoundRoom } from "../net/finder";
@@ -285,21 +286,24 @@ function Casting({ snap }: { snap: Snapshot }) {
   const { isHost, myId } = useRoom();
   const leave = useLeave();
   const scene = snap.scene!;
+  const roles = playableRoles(scene);
   const mine = snap.players.find((p) => p.id === myId);
   const ready = everyoneCast(snap);
+  const missing = playersNeeded(snap);
   return (
     <div className="wrap stack">
       <div>
         <h2>{t.online.castingTitle}</h2>
         <p className="muted"><b>{scene.title}</b>{snap.pack ? ` · ${snap.pack.name}` : ""}</p>
       </div>
+      {missing > 0 && <Invite code={snap.code} />}
       <section className="panel stack" aria-labelledby="roles-h">
         <div>
           <h3 id="roles-h">{t.online.roles}</h3>
           <p className="muted fine">{snap.public ? t.online.castingPublic : t.online.castingHint}</p>
         </div>
         <div className="role-grid">
-          {scene.roles.map((r) => {
+          {roles.map((r) => {
             const owner = snap.players.find((p) => p.roleId === r.id);
             const isMine = owner?.id === myId;
             const taken = !!owner && !isMine;
@@ -329,7 +333,7 @@ function Casting({ snap }: { snap: Snapshot }) {
             </>
           )}
         </div>
-        {scene.roles.length > snap.players.filter((p) => p.roleId).length && <p className="muted fine">{t.online.unassignedHint}</p>}
+        {missing > 0 && <p className="muted fine">{t.online.needPlayers(missing)}</p>}
       </section>
 
       <section className="panel stack" aria-labelledby="players-h">
@@ -343,7 +347,7 @@ function Casting({ snap }: { snap: Snapshot }) {
         <button className="ghost danger" onClick={leave}>{t.online.leave}</button>
         {isHost && <button className="ghost" onClick={hostToLobby}>{t.online.toScenes}</button>}
         <div className="spacer" />
-        {!ready && <span className="muted fine">{t.online.needAllRoles}</span>}
+        {!ready && <span className="muted fine">{missing > 0 ? t.online.needPlayers(missing) : onlinePlayers(snap).some((p) => !p.ready) ? t.online.needReady : t.online.needAllRoles}</span>}
         {isHost ? (
           <button className="primary" disabled={!ready} onClick={async () => { await unlockAudio(); hostStart(); }}>{t.online.start}</button>
         ) : ready && <span className="muted">{t.online.waitHost}</span>}
@@ -403,7 +407,7 @@ function ScenePicker({ snap }: { snap: Snapshot }) {
     try {
       const [p] = await importFiles(files);
       await load();
-      const sc = p?.scenes.find((x) => x.roles.length >= onlinePlayers(snap).length);
+      const sc = p?.scenes.find((x) => playableRoles(x).length >= onlinePlayers(snap).length);
       if (p && sc) hostSelectScene(p, sc.id);
     } catch {
       notify(t.importer.failTitle);
@@ -418,7 +422,7 @@ function ScenePicker({ snap }: { snap: Snapshot }) {
   if (!packs.length) return <div className="stack" style={{ gap: 10 }}><p className="muted">{t.online.noPacks}</p>{importButton}</div>;
   const pack = packs.find((p) => p.id === snap.pack?.id);
   const players = onlinePlayers(snap).length;
-  const fits = (sc: { roles: unknown[] }) => sc.roles.length >= players;
+  const fits = (sc: Pack["scenes"][number]) => playableRoles(sc).length >= players;
   return (
     <div className="stack" style={{ gap: 10 }}>
       <label className="field">

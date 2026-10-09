@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { t } from "../i18n";
 import { EFFECTS, type EffectId } from "../lib/audio/effects";
 import { sceneMediaKeys, store } from "../lib/store";
+import { playableRoles } from "../state/game";
 import type { Pack, Scene } from "../lib/types";
 import { Link, type FileMeta, type Json } from "./link";
 
@@ -97,7 +98,7 @@ const PEER_OPTIONS = {
 const EFFECT_IDS = new Set<string>(EFFECTS.map((e) => e.id));
 const asEffect = (v: unknown): EffectId => (EFFECT_IDS.has(String(v)) ? (v as EffectId) : "none");
 const asOffset = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? Math.max(-600, Math.min(600, n)) : 0; };
-const isRole = (s: Snapshot, roleId: string) => !!s.scene?.roles.some((r) => r.id === roleId);
+const isRole = (s: Snapshot, roleId: string) => !!s.scene && playableRoles(s.scene).some((r) => r.id === roleId);
 const isScene = (v: unknown): v is Scene => {
   const sc = v as Scene;
   return !!sc && typeof sc === "object" && typeof sc.id === "string" && Array.isArray(sc.roles) && Array.isArray(sc.lines);
@@ -126,7 +127,7 @@ function hostUpdate(fn: (s: Snapshot) => void, throttle = false) {
 }
 
 /** Max players = roles in the scene (a 3-role scene takes the host plus two more). */
-export const capacityOf = (s: Snapshot) => s.scene?.roles.length ?? Infinity;
+export const capacityOf = (s: Snapshot) => (s.scene ? playableRoles(s.scene).length : Infinity);
 export const onlinePlayers = (s: Snapshot) => s.players.filter((p) => p.online);
 
 let wantPublic = false;
@@ -180,7 +181,7 @@ function hostHandle(link: Link, msg: Json) {
       if (!cur.players.some((p) => p.id === id)) {
         // No more players than roles; strangers can't drop into a game already under way.
         if (onlinePlayers(cur).length >= capacityOf(cur)) return reject(link, "full");
-        if (cur.public && cur.phase !== "lobby") return reject(link, "started");
+        if (cur.public && cur.phase !== "lobby" && cur.phase !== "casting") return reject(link, "started");
       }
       guests.set(id, link);
       const name = String(msg.name || "").slice(0, 30) || t().online.guest;
@@ -228,7 +229,7 @@ function reject(link: Link, reason: "full" | "started") {
 /** Deal online players onto random roles (extra roles stay free). */
 function dealRoles(s: Snapshot) {
   if (!s.scene) return;
-  const roles = shuffle(s.scene.roles.map((r) => r.id));
+  const roles = shuffle(playableRoles(s.scene).map((r) => r.id));
   s.players.forEach((p) => { p.roleId = null; });
   shuffle(onlinePlayers(s)).forEach((p, i) => { p.roleId = roles[i] ?? null; });
 }
@@ -345,7 +346,7 @@ function shuffle<T>(a: T[]): T[] {
 export async function hostSelectScene(pack: Pack, sceneId: string) {
   const scene = pack.scenes.find((s) => s.id === sceneId);
   const cur = useRoom.getState().snap;
-  if (!scene || !cur || cur.phase !== "lobby" || scene.roles.length < onlinePlayers(cur).length) return;
+  if (!scene || !cur || cur.phase !== "lobby" || playableRoles(scene).length < onlinePlayers(cur).length) return;
   const prevRoles = useRoom.getState().snap?.scene?.roles.map((r) => r.id).join() ?? "";
   hostUpdate((s) => {
     s.pack = { id: pack.id, name: pack.name, author: pack.author };
@@ -449,7 +450,12 @@ export function hostStart() {
   });
 }
 
-export const everyoneCast = (s: Snapshot) => onlinePlayers(s).length > 0 && onlinePlayers(s).every((p) => p.roleId);
+/** Every role is voiced by someone here: the dub has no holes and no original voices. */
+export const everyoneCast = (s: Snapshot) =>
+  !!s.scene && onlinePlayers(s).every((p) => p.roleId && p.ready) &&
+  playableRoles(s.scene).every((r) => onlinePlayers(s).some((p) => p.roleId === r.id));
+/** Players still missing for every role to be taken. */
+export const playersNeeded = (s: Snapshot) => Math.max(0, capacityOf(s) - onlinePlayers(s).length);
 
 export const hostToScreening = () => hostUpdate((s) => { s.phase = "screening"; });
 export const hostToLobby = () => hostUpdate((s) => {

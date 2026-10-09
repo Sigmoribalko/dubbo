@@ -357,6 +357,7 @@ export const en: Dict = {
     castingHint: "Tap a free role. Once everyone has one, the host starts recording.",
     castingPublic: "In an open room roles are dealt at random. The host can shuffle them.",
     needAllRoles: "Waiting for everyone to pick a role",
+    needPlayers: (n: number) => `Every role needs a voice: ${n} more ${n === 1 ? "player" : "players"} needed. Invite friends with the code.`,
     toScenes: "Back to scene choice",
     linesLeft: (n: number) => (n ? `${n} ${n === 1 ? "line" : "lines"} left` : "finishing"),
     youSubmitted: "Submitted! Waiting for the others",

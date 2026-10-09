@@ -29,7 +29,7 @@ function clean(v: unknown): PublicRoomInfo | null {
   };
 }
 
-export const joinable = (r: FoundRoom) => r.phase === "lobby" && r.players < r.capacity;
+export const joinable = (r: FoundRoom) => (r.phase === "lobby" || r.phase === "casting") && r.players < r.capacity;
 
 /** Probe all public slots. Calls `onFound` as rooms answer; resolves when the sweep is done. */
 export function findRooms(onFound: (room: FoundRoom) => void): { done: Promise<void>; cancel(): void } {

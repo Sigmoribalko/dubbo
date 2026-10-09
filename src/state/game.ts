@@ -54,23 +54,22 @@ export async function createGame(opts: {
   return { game: { ...opts, videoUrl, bg, clips, tracks: {}, lineTakes: {}, effects: {} }, warnings };
 }
 
+/** Roles that have lines: the only ones anybody can play (a role with no lines isn't a role). */
+export const playableRoles = (scene: Scene): Role[] => scene.roles.filter((r) => scene.lines.some((l) => l.roleId === r.id));
+
 /** Roles somebody is voicing, in scene order. */
 export const castRoles = (g: Game): Role[] => g.scene.roles.filter((r) => g.cast[r.id]);
 export const effectOf = (g: Game, roleId: string): EffectId => g.effects[roleId] ?? "none";
 
 /**
- * What plays under the scene: players' recordings (with effects), the pack's original lines
- * for roles nobody took, and the backing track. `exclude` leaves one role out (while recording it).
+ * What plays under the dub: players' recordings (with effects) and the backing track.
+ * Never the pack's original voices. `exclude` leaves one role out (while recording it).
  */
 export function mixFor(g: Game, exclude: string | null = null): MixTrack[] {
   const out: MixTrack[] = [];
   for (const r of castRoles(g)) {
     const t = g.tracks[r.id];
     if (t && r.id !== exclude) out.push({ buffer: t.buffer, offset: t.offset, bus: "voice", effect: effectOf(g, r.id) });
-  }
-  for (const l of g.scene.lines) {
-    const buf = l.clip ? g.clips[l.clip] : undefined;
-    if (buf && !g.cast[l.roleId]) out.push({ buffer: buf, offset: -l.start, bus: "lines" });
   }
   if (g.bg) out.push({ buffer: g.bg, offset: 0, bus: "bg" });
   return out;
@@ -95,16 +94,16 @@ export const myLines = (g: Game) => (g.myRoleId ? g.scene.lines.filter((l) => l.
 const WHOLE: DuckRanges = [[0, Number.MAX_SAFE_INTEGER]];
 
 /**
- * How the video's own soundtrack is treated so the dubbed voice never comes through.
- * With a backing track (music and effects without voices) the video is silent and only the
- * hero's voice is missing. Otherwise centred dialogue is removed during the lines of the role
- * you're recording (or every voiced role when watching), and during lines the pack plays from
- * separate clips, so no voice is heard twice.
+ * How the video's own soundtrack is treated so the heroes' voices don't come through while the
+ * background stays. With a backing track (music and effects without voices) the video is silent
+ * and the backing track plays: no original voice at all. Otherwise centred dialogue is removed
+ * (music and effects stay) during every line when watching, or during your own lines while
+ * recording (the others stay audible as cues).
  */
 export function videoDuck(g: Game, onlyRoleId?: string): VideoDuck {
   if (g.bg) return { ranges: WHOLE, mode: "mute" };
   const ranges: DuckRanges = g.scene.lines
-    .filter((l) => (onlyRoleId ? l.roleId === onlyRoleId : !!g.cast[l.roleId]) || (!!l.clip && !!g.clips[l.clip]))
+    .filter((l) => !onlyRoleId || l.roleId === onlyRoleId)
     .map((l) => [l.start, l.end]);
   return { ranges, mode: "voice" };
 }
