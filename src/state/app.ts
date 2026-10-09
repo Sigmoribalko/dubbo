@@ -8,7 +8,8 @@ export type View =
   | { name: "record" }
   | { name: "screen" }
   | { name: "online"; code?: string; packId?: string; intent?: "create" | "join" | "find" }
-  | { name: "auth"; mode?: "signin" | "signup" };
+  | { name: "auth"; mode?: "signin" | "signup" }
+  | { name: "profile" };
 
 interface Toast { id: number; text: string }
 

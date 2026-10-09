@@ -79,6 +79,8 @@ src/
    профиль создаётся автоматически при регистрации, а функция `use_dub` атомарно считает озвучку
    и отказывает, если лимит исчерпан. Чтобы ограничить бесплатный тариф, например, 20 озвучками:
    `update public.profiles set dubs_limit = 20 where plan = 'free';`
+   Затем так же выполните `supabase/migrations/002_best_voice_wins.sql`: счётчик «лучший голос»
+   (`profiles.wins`) и функция `record_win`, которая засчитывает победу один раз за раунд.
 6. **Project Settings → API**: возьмите *Project URL* и ключ *anon public* и задайте их как переменные репозитория:
    ```bash
    gh variable set SUPABASE_URL --body "https://xxxx.supabase.co"

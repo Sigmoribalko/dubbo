@@ -23,6 +23,8 @@ export interface Profile {
   dubs_used: number;
   /** null = unlimited. */
   dubs_limit: number | null;
+  /** Times voted best voice. */
+  wins: number;
 }
 
 interface AuthState {
@@ -36,8 +38,10 @@ export const useAuth = create<AuthState>(() => ({ ready: !authEnabled, user: nul
 export async function refreshProfile() {
   const user = useAuth.getState().user;
   if (!authEnabled || !user) { useAuth.setState({ profile: null }); return; }
-  const { data } = await sb().from("profiles").select("id, name, plan, dubs_used, dubs_limit").eq("id", user.id).maybeSingle();
-  useAuth.setState({ profile: (data as Profile | null) ?? null });
+  let { data, error } = await sb().from("profiles").select("id, name, plan, dubs_used, dubs_limit, wins").eq("id", user.id).maybeSingle();
+  // Before the "wins" migration has been run, load the rest of the profile anyway.
+  if (error) ({ data } = await sb().from("profiles").select("id, name, plan, dubs_used, dubs_limit").eq("id", user.id).maybeSingle());
+  useAuth.setState({ profile: data ? ({ ...data, wins: (data as Partial<Profile>).wins ?? 0 } as Profile) : null });
 }
 
 export function initAuth() {
@@ -134,6 +138,14 @@ export async function resetPassword(email: string, code: string, password: strin
   if (v.error) fail(v.error);
   const u = await sb().auth.updateUser({ password });
   if (u.error) fail(u.error);
+}
+
+/** Count a "best voice" win for the signed-in player, once per room round. */
+export async function recordWin(roundKey: string) {
+  if (!authEnabled || !useAuth.getState().user) return;
+  const { data, error } = await sb().rpc("record_win", { round_key: roundKey });
+  const p = useAuth.getState().profile;
+  if (!error && p && typeof data === "number") useAuth.setState({ profile: { ...p, wins: data } });
 }
 
 export async function signOut() {

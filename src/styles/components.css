@@ -411,3 +411,12 @@ button.icon-only { width: 36px; height: 36px; padding: 0; }
 .auth-buttons { display: flex; gap: 6px; }
 .menu-info { display: grid; gap: 2px; padding: 8px 12px 10px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
 @media (max-width: 380px) { .auth-buttons .ghost { display: none; } }
+
+/* ---------- profile ---------- */
+.profile-head { display: flex; align-items: center; gap: 16px; padding-top: 8px; }
+.profile-avatar { width: 64px; height: 64px; font-size: 1.6rem; background: var(--accent); color: var(--accent-ink); }
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.stat { display: grid; gap: 4px; padding: 20px; border-radius: var(--r-lg); background: var(--panel); border: 1.5px solid var(--line); }
+.stat-value { font: 900 clamp(2.4rem, 9vw, 3.4rem) var(--font-display); line-height: 1; }
+.stat-label { font-weight: 700; }
+.stat-wins { background: var(--rec); border-color: var(--rec); color: #fff; }

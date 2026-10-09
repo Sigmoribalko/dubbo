@@ -397,6 +397,17 @@ export const en: Dict = {
       unknown: "Something went wrong. Please try again.",
     },
   },
+  profile: {
+    title: "Profile",
+    signInToSee: "Sign in to see your stats: how much you've dubbed and how many times you were the best voice.",
+    dubs: "Dubs",
+    dubsLimit: (n: number) => `Left on your plan: ${n}`,
+    wins: "Times best voice",
+    winsShort: (n: number) => `best voice: ${n}`,
+    plan: "Plan",
+    planFree: "Free",
+    unlimited: "unlimited",
+  },
   meter: "Microphone",
   effects: {
     none: ["Your voice", "No processing"],

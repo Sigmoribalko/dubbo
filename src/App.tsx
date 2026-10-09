@@ -14,6 +14,7 @@ import { Editor } from "./views/Editor";
 import { Home } from "./views/Home";
 import { Online } from "./views/Online";
 import { Packs } from "./views/Packs";
+import { Profile } from "./views/Profile";
 import { Record } from "./views/Record";
 import { Screening } from "./views/Screening";
 
@@ -77,6 +78,7 @@ export function App() {
         {view.name === "record" && game && <Record />}
         {view.name === "screen" && game && <Screening />}
         {view.name === "auth" && <Auth mode={view.mode} />}
+        {view.name === "profile" && <Profile />}
         {view.name === "online" && <Online code={view.code} packId={view.packId} intent={view.intent} />}
       </main>
 

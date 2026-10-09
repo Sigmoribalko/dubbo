@@ -8,6 +8,7 @@ import { routeVideo, unlockAudio, VideoMixer, type MixTrack, type VideoDuck } fr
 import { canExportVideo, exportVideo, type VideoExportJob } from "../lib/audio/exportVideo";
 import { fmtTime, prefersReducedMotion, safeFileName } from "../lib/util";
 import { hostPlayAll, hostReveal, hostToLobby, leaveRoom, onPlayAll, useRoom, vote, voteCounts } from "../net/room";
+import { recordWin } from "../lib/auth/auth";
 import { notify, useApp, useGame } from "../state/app";
 import { castRoles, originalDuck, effectOf, mixFor, originalMix, videoDuck } from "../state/game";
 
@@ -57,6 +58,7 @@ export function Screening() {
     const key = winners?.join() ?? null;
     if (!key || celebrated.current === key) return;
     celebrated.current = key;
+    if (game.myRoleId && winners!.includes(game.myRoleId) && snap) recordWin(`${snap.code}-${snap.round}`);
     confetti();
     const names = winners!.map((id) => game.cast[id]).filter(Boolean).join(", ");
     notify(winners!.length > 1 ? t.screen.tie : t.screen.bestIs(names));

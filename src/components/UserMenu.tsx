@@ -42,10 +42,11 @@ export function UserMenu() {
             <span className="muted fine">{user.email}</span>
             {profile && (
               <span className="fine">
-                {profile.dubs_limit == null ? t.auth.dubsUnlimited(profile.dubs_used) : t.auth.dubsLeft(profile.dubs_used, profile.dubs_limit)}
+                {profile.dubs_limit == null ? t.auth.dubsUnlimited(profile.dubs_used) : t.auth.dubsLeft(profile.dubs_used, profile.dubs_limit)} · {t.profile.winsShort(profile.wins)}
               </span>
             )}
           </div>
+          <button role="menuitem" className="menu-item" onClick={() => { setOpen(false); go({ name: "profile" }); }}>{t.profile.title}</button>
           <button role="menuitem" className="menu-item" onClick={async () => { setOpen(false); await signOut(); notify(t.auth.signedOut); }}>{t.auth.signOut}</button>
         </div>
       )}
