@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { HomeDemo } from "../components/HomeDemo";
 import { useT } from "../i18n";
 import { normalizeCode } from "../net/room";
 import { useApp } from "../state/app";
@@ -41,7 +40,6 @@ export function Home() {
         </section>
       </div>
 
-      <HomeDemo roleName={h.demo.roles[0]} lines={h.demo.lines} label={h.demoLabel} youLabel={t.record.trackYou} originalLabel={t.record.trackCharacter(h.demo.roles[0])} />
 
       <section aria-labelledby="how-h">
         <h3 id="how-h" className="section-kicker">{h.howTitle}</h3>

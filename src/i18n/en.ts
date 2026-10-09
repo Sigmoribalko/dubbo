@@ -68,6 +68,12 @@ export const en: Dict = {
     confirmDelete: (name: string) => `Delete the pack “${name}” and its videos?`,
     demoLabel: "Dubbing example",
     demo: {
+      you: "You",
+      friend: "Friend",
+      original: "Original",
+      now: "now",
+      inSec: (s: string) => `in ${s} s`,
+      match: (n: number) => `${n}% match`,
       roles: ["Captain", "Robot", "Cat"],
       lines: ["Who's in charge here?", "Beep. Definitely not you.", "Meow.", "Cat, are you against me too?", "I'm for dinner.", "I vote for the cat."],
     },
