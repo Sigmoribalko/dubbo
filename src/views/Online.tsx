@@ -4,9 +4,12 @@ import { unlockAudio } from "../lib/audio/engine";
 import { store } from "../lib/store";
 import type { Pack } from "../lib/types";
 import {
-  capacityOf, createRoom, hostSelectScene, hostSetPublic, hostStart, hostToScreening, inviteLink, joinRoom, leaveRoom, normalizeCode,
-  onlinePlayers, pickRole, randomizeRoles, resetRoles, useRoom, type Player, type Snapshot,
+  capacityOf, createRoom, everyoneCast, hostCast, hostSelectScene, hostSetPublic, hostStart, hostToLobby, hostToScreening, inviteLink, joinRoom,
+  leaveRoom, normalizeCode, onlinePlayers, pickRole, playersNeeded, randomizeRoles, useRoom, type Player, type Snapshot,
 } from "../net/room";
+import { playableRoles } from "../state/game";
+import { FileButton } from "../components/FileButton";
+import { importFiles } from "../lib/pack/import";
 import { findRooms, joinable, type FoundRoom } from "../net/finder";
 import { displayName, useAuth } from "../lib/auth/auth";
 import { notify, useApp } from "../state/app";
@@ -33,7 +36,11 @@ export function Online({ code: initialCode, packId, intent }: { code?: string; p
     store.getPack(packId).then((p) => { if (p?.scenes.length) hostSelectScene(p, p.scenes[0].id); });
   }, [packId, status, isHost, snap?.pack]);
 
-  if (status === "open" && snap) return snap.phase === "lobby" ? <Lobby snap={snap} /> : <RecordingWait snap={snap} />;
+  if (status === "open" && snap) {
+    if (snap.phase === "lobby") return <Lobby snap={snap} />;
+    if (snap.phase === "casting") return <Casting snap={snap} />;
+    return <RecordingWait snap={snap} />;
+  }
 
   if (status === "connecting") {
     return (
@@ -209,20 +216,13 @@ function Finder({ error }: { error: string | null }) {
 
 function Lobby({ snap }: { snap: Snapshot }) {
   const t = useT();
-  const go = useApp((s) => s.go);
   const { isHost, myId } = useRoom();
   const scene = snap.scene;
   const mine = snap.players.find((p) => p.id === myId);
   const online = snap.players.filter((p) => p.online);
   const everyoneReady = online.every((p) => p.ready);
-  const anyRole = snap.players.some((p) => p.roleId);
   const capacity = capacityOf(snap);
-
-  const leave = () => {
-    if (!confirm(t.online.leaveConfirm)) return;
-    leaveRoom();
-    go({ name: "home" });
-  };
+  const leave = useLeave();
 
   return (
     <div className="wrap stack">
@@ -251,60 +251,107 @@ function Lobby({ snap }: { snap: Snapshot }) {
         </section>
       </div>
 
-      {scene && (
-        <section className="panel stack" aria-labelledby="roles-h">
-          <div>
-            <h3 id="roles-h">{t.online.roles}</h3>
-            <p className="muted fine">{snap.public ? t.online.publicRoles : t.online.pickHint}</p>
-          </div>
-          <div className="role-grid">
-            {scene.roles.map((r) => {
-              const owner = snap.players.find((p) => p.roleId === r.id);
-              const isMine = owner?.id === myId;
-              const taken = !!owner && !isMine;
-              return (
-                <button
-                  key={r.id}
-                  className={"role-card" + (isMine ? " mine" : "") + (taken ? " taken" : "")}
-                  style={{ ["--c" as string]: r.color }}
-                  disabled={taken || snap.public}
-                  aria-pressed={isMine}
-                  onClick={() => pickRole(isMine ? null : r.id)}
-                >
-                  <span className="role-dot" aria-hidden="true" />
-                  <span className="role-name">{r.name}</span>
-                  <span className="role-owner">{owner ? (isMine ? `${owner.name} (${t.online.you})` : owner.name) : t.online.free}</span>
-                </button>
-              );
-            })}
-          </div>
-          <div className="row">
-            {snap.public ? (
-              isHost && <button onClick={randomizeRoles}>{t.online.shuffleRoles}</button>
-            ) : (
-              <>
-                <button onClick={randomizeRoles}>{t.online.random}</button>
-                <button onClick={resetRoles} disabled={!anyRole}>{t.online.reset}</button>
-              </>
-            )}
-          </div>
-          {scene.roles.length > snap.players.filter((p) => p.roleId).length && <p className="muted fine">{t.online.unassignedHint}</p>}
-        </section>
-      )}
-
       <div className="row">
         <button className="ghost danger" onClick={leave}>{t.online.leave}</button>
         <div className="spacer" />
         {isHost ? (
           <>
             {snap.public && online.length < 2 && <span className="muted fine">{t.online.waitPlayers}</span>}
-            {scene && !anyRole && <span className="muted fine">{t.online.needRoles}</span>}
-            {scene && anyRole && !everyoneReady && <span className="muted fine">{t.online.needReady}</span>}
-            <button className="primary" disabled={!scene || !anyRole || !everyoneReady} onClick={async () => { await unlockAudio(); hostStart(); }}>{t.online.start}</button>
+            {scene && !everyoneReady && <span className="muted fine">{t.online.needReady}</span>}
+            <button className="primary" disabled={!scene || !everyoneReady} onClick={async () => { await unlockAudio(); hostCast(); }}>{t.online.startCasting}</button>
           </>
         ) : (
           <span className="muted">{mine?.ready === false ? t.online.downloading(mine.progress ?? 0) : t.online.waitHost}</span>
         )}
+      </div>
+    </div>
+  );
+}
+
+function useLeave() {
+  const t = useT();
+  const go = useApp((s) => s.go);
+  return () => {
+    if (!confirm(t.online.leaveConfirm)) return;
+    leaveRoom();
+    useApp.getState().setGame(null);
+    go({ name: "home" });
+  };
+}
+
+/* ---------- casting: everyone picks a role ---------- */
+
+function Casting({ snap }: { snap: Snapshot }) {
+  const t = useT();
+  const { isHost, myId } = useRoom();
+  const leave = useLeave();
+  const scene = snap.scene!;
+  const roles = playableRoles(scene);
+  const mine = snap.players.find((p) => p.id === myId);
+  const ready = everyoneCast(snap);
+  const missing = playersNeeded(snap);
+  return (
+    <div className="wrap stack">
+      <div>
+        <h2>{t.online.castingTitle}</h2>
+        <p className="muted"><b>{scene.title}</b>{snap.pack ? ` · ${snap.pack.name}` : ""}</p>
+      </div>
+      {missing > 0 && <Invite code={snap.code} />}
+      <section className="panel stack" aria-labelledby="roles-h">
+        <div>
+          <h3 id="roles-h">{t.online.roles}</h3>
+          <p className="muted fine">{snap.public ? t.online.castingPublic : t.online.castingHint}</p>
+        </div>
+        <div className="role-grid">
+          {roles.map((r) => {
+            const owner = snap.players.find((p) => p.roleId === r.id);
+            const isMine = owner?.id === myId;
+            const taken = !!owner && !isMine;
+            return (
+              <button
+                key={r.id}
+                className={"role-card" + (isMine ? " mine" : "") + (taken ? " taken" : "")}
+                style={{ ["--c" as string]: r.color }}
+                disabled={taken || snap.public}
+                aria-pressed={isMine}
+                onClick={() => pickRole(isMine ? null : r.id)}
+              >
+                <span className="role-dot" aria-hidden="true" />
+                <span className="role-name">{r.name}</span>
+                <span className="role-owner">{owner ? (isMine ? `${owner.name} (${t.online.you})` : owner.name) : t.online.free}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="row">
+          {snap.public ? (
+            isHost && <button onClick={randomizeRoles}>{t.online.shuffleRoles}</button>
+          ) : (
+            <>
+              <button onClick={() => pickRole(null)} disabled={!mine?.roleId}>{t.online.reset}</button>
+              <button onClick={randomizeRoles}>{t.online.shuffleRoles}</button>
+            </>
+          )}
+        </div>
+        {missing > 0 && <p className="muted fine">{t.online.needPlayers(missing)}</p>}
+        {snap.players.some((p) => !p.online) && <p className="muted fine">{t.online.dropped(snap.players.filter((p) => !p.online).map((p) => p.name).join(", "))}</p>}
+      </section>
+
+      <section className="panel stack" aria-labelledby="players-h">
+        <h3 id="players-h">{t.online.players}</h3>
+        <ul className="players">
+          {snap.players.map((p) => <PlayerRow key={p.id} p={p} snap={snap} me={p.id === myId} />)}
+        </ul>
+      </section>
+
+      <div className="row">
+        <button className="ghost danger" onClick={leave}>{t.online.leave}</button>
+        {isHost && <button className="ghost" onClick={hostToLobby}>{t.online.toScenes}</button>}
+        <div className="spacer" />
+        {!ready && <span className="muted fine">{missing > 0 ? t.online.needPlayers(missing) : onlinePlayers(snap).some((p) => !p.ready) ? t.online.needReady : t.online.needAllRoles}</span>}
+        {isHost ? (
+          <button className="primary" disabled={!ready} onClick={async () => { await unlockAudio(); hostStart(); }}>{t.online.start}</button>
+        ) : ready && <span className="muted">{t.online.waitHost}</span>}
       </div>
     </div>
   );
@@ -353,12 +400,30 @@ function PlayerRow({ p, snap, me }: { p: Player; snap: Snapshot; me: boolean }) 
 function ScenePicker({ snap }: { snap: Snapshot }) {
   const t = useT();
   const [packs, setPacks] = useState<Pack[] | null>(null);
-  useEffect(() => { store.listPacks().then((all) => setPacks(all.filter((p) => p.scenes.length))); }, []);
+  const [importing, setImporting] = useState(false);
+  const load = () => store.listPacks().then((all) => { const withScenes = all.filter((p) => p.scenes.length); setPacks(withScenes); return withScenes; });
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const runImport = async (files: File[]) => {
+    setImporting(true);
+    try {
+      const [p] = await importFiles(files);
+      await load();
+      const sc = p?.scenes.find((x) => playableRoles(x).length >= onlinePlayers(snap).length);
+      if (p && sc) hostSelectScene(p, sc.id);
+    } catch {
+      notify(t.importer.failTitle);
+    } finally {
+      setImporting(false);
+    }
+  };
+  const importButton = importing
+    ? <div className="row"><div className="spinner" /><span className="muted fine">{t.online.importing}</span></div>
+    : <FileButton className="small" multiple onFiles={runImport}>{t.online.importPack}</FileButton>;
   if (!packs) return <div className="spinner" />;
-  if (!packs.length) return <p className="muted">{t.online.noPacks}</p>;
+  if (!packs.length) return <div className="stack" style={{ gap: 10 }}><p className="muted">{t.online.noPacks}</p>{importButton}</div>;
   const pack = packs.find((p) => p.id === snap.pack?.id);
   const players = onlinePlayers(snap).length;
-  const fits = (sc: { roles: unknown[] }) => sc.roles.length >= players;
+  const fits = (sc: Pack["scenes"][number]) => playableRoles(sc).length >= players;
   return (
     <div className="stack" style={{ gap: 10 }}>
       <label className="field">
@@ -376,44 +441,53 @@ function ScenePicker({ snap }: { snap: Snapshot }) {
           </select>
         </label>
       )}
+      <div>{importButton}</div>
     </div>
   );
 }
 
 /* ---------- waiting while others record ---------- */
 
-function RecordingWait({ snap }: { snap: Snapshot }) {
+export function RecordingWait({ snap }: { snap: Snapshot }) {
   const t = useT();
   const { isHost, myId } = useRoom();
-  const go = useApp((s) => s.go);
-  const game = useApp((s) => s.game);
+  const leave = useLeave();
   const cast = snap.players.filter((p) => p.roleId);
   const done = cast.filter((p) => p.submitted).length;
   const mine = snap.players.find((p) => p.id === myId);
+  const linesOf = (p: Player) => snap.scene?.lines.filter((l) => l.roleId === p.roleId).length ?? 0;
+  // Who has submitted first, then who is closest to finishing.
+  const dropped = cast.filter((p) => !p.online && !p.submitted);
+  const order = [...cast].sort((a, b) => Number(b.submitted) - Number(a.submitted) || (linesOf(a) - a.linesDone) - (linesOf(b) - b.linesDone));
   return (
     <div className="wrap stack">
-      <h2>{t.online.recordingTitle}</h2>
+      <h2>{mine?.submitted ? t.online.youSubmitted : t.online.recordingTitle}</h2>
       {!mine?.roleId && <p className="muted">{t.online.spectator}</p>}
-      <section className="panel stack">
+      <section className="panel stack" aria-live="polite">
         <p><b>{t.online.submittedOf(done, cast.length)}</b></p>
         <ul className="players">
-          {cast.map((p) => {
+          {order.map((p) => {
             const role = snap.scene?.roles.find((r) => r.id === p.roleId);
             return (
-              <li className="player" key={p.id}>
+              <li className={"player" + (p.online ? "" : " off")} key={p.id}>
                 <span className="avatar" aria-hidden="true">{p.name.slice(0, 1).toUpperCase()}</span>
-                <span className="player-name">{p.name}</span>
+                <span className="player-name">{p.name}{p.id === myId && <small className="muted"> · {t.online.you}</small>}</span>
                 {role && <span className="chip tag" style={{ ["--c" as string]: role.color }}>{role.name}</span>}
-                <span className={p.submitted ? "ok" : "muted fine"}>{p.submitted ? t.online.sentMark : t.online.recording}</span>
+                <span className={p.submitted ? "ok" : "muted fine"}>
+                  {p.submitted ? t.online.sentMark : !p.online ? t.online.offline : t.online.linesLeft(linesOf(p) - p.linesDone)}
+                </span>
               </li>
             );
           })}
         </ul>
       </section>
+      {dropped.length > 0 && (
+        <p className="notice panel">{t.online.dropped(dropped.map((p) => p.name).join(", "))}{isHost ? " " + t.online.droppedHost : ""}</p>
+      )}
       <div className="row">
-        {mine?.roleId && game && <button onClick={() => go({ name: "record" })}>{t.record.rerecord}</button>}
+        <button className="ghost danger" onClick={leave}>{t.online.leave}</button>
         <div className="spacer" />
-        {isHost && <button className="primary" onClick={hostToScreening}>{t.online.watchNow}</button>}
+        {isHost && done > 0 && <button className={dropped.length ? "primary" : ""} onClick={hostToScreening}>{t.online.watchNow}</button>}
       </div>
     </div>
   );

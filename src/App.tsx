@@ -29,6 +29,7 @@ export function App() {
   const settingsOpen = useApp((s) => s.settingsOpen);
   const setSettingsOpen = useApp((s) => s.setSettingsOpen);
   useRoomDirector();
+  const reconnecting = useRoom((s) => s.reconnecting);
 
   // Invite links look like ?room=K7MXQ.
   useEffect(() => {
@@ -71,6 +72,11 @@ export function App() {
         <button className="small ghost icon-btn" onClick={() => setSettingsOpen(true)} aria-label={t.header.settings} title={t.header.settings}><Icon name="gear" size={20} /></button>
       </header>
 
+      {reconnecting && (
+        <div className="wrap reconnect-banner" role="status">
+          <div className="panel notice row"><div className="spinner" /><span>{t.online.reconnecting}</span></div>
+        </div>
+      )}
       <main className="view" key={view.name + ("packId" in view ? view.packId ?? "" : "")}>
         {view.name === "home" && <Home />}
         {view.name === "packs" && <Packs />}

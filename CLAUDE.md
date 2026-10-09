@@ -11,6 +11,24 @@ Live: https://dubparty.ru (GitHub Pages, repo Sigmoribalko/dubparty). Owner talk
   HTTPS certificate was still pending on 2026-10-09; when `gh api repos/Sigmoribalko/dubparty/pages --jq .https_certificate.state`
   says approved, run `gh api -X PUT repos/Sigmoribalko/dubparty/pages -F https_enforced=true`.
 
+## Game flow (owner's spec)
+lobby (host picks/imports pack + scene, invites, everyone downloads) → host "Начать: выбор ролей" → casting (pick role,
+"Перевыбрать", "Перемешать роли"; public rooms deal at random) → host "Начать запись" when everyone has a role →
+recording line by line ("Реплика N из M": listen original, record, listen back, re-record, Далее / ← Назад, last = Сдать)
+→ waiting screen (who submitted, lines left for others) → everyone submitted → show autoplays → vote best voice
+(not yourself) → download video / host "К выбору сцены" / leave.
+- Line takes live in `game.lineTakes`; on submit `src/lib/audio/compose.ts` joins them into one WAV voice track, so
+  networking/mixing/export still handle one recording per role. Progress is sent as `{t:"lines", n}`.
+
+## Drops and bad connections (`src/net/room.ts`)
+- Each browser has a secret player key (localStorage `dubl-player-key`, sent only to the host in `hello`). A dropped
+  player who comes back with the same key gets their seat, role and votes back (only if that seat is offline).
+- Before the game a dropped seat is held 60 s, during the game it stays (offline). The show auto-starts only when
+  every cast player submitted; if someone dropped without submitting the host can start it anyway.
+- Guests auto-reconnect to the host for 90 s ("Переподключаюсь…" banner) and resend their own take on return.
+- The host's room is saved in localStorage (`dubl-hosted`, own take blob in IndexedDB) for 20 min; Home offers
+  "Вернуться в комнату" and `resumeRoom()` reopens the same room id. Leaving on purpose sends `bye` to guests.
+
 ## Code map
 - `src/net/room.ts` — online rooms over WebRTC (PeerJS public signalling). Host is authoritative; guests download the scene;
   public rooms advertise on `dubbo-v1-pub-<0..39>` (found by `src/net/finder.ts`); capacity = number of roles; random role dealing.

@@ -45,7 +45,7 @@ export function useRoomDirector() {
     const onPhase = async (snap: Snapshot, myId: string) => {
       const view = app().view.name;
       const game = app().game;
-      if (snap.phase === "lobby") {
+      if (snap.phase === "lobby" || snap.phase === "casting") {
         if (view === "record" || view === "screen") { app().setGame(null); app().go({ name: "online" }); }
         return;
       }

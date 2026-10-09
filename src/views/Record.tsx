@@ -8,14 +8,16 @@ import { VoiceTrack } from "../components/VoiceTrack";
 import { characterEnvelope, ENV_RATE, recordingEnvelope, type Envelope } from "../lib/audio/envelope";
 import { useT } from "../i18n";
 import type { EffectId } from "../lib/audio/effects";
-import { decodeBlob, routeVideo, unlockAudio, VideoMixer } from "../lib/audio/engine";
+import { composeLines, recordWindow } from "../lib/audio/compose";
+import { decodeBlob, routeVideo, unlockAudio, VideoMixer, type MixTrack, type VideoDuck } from "../lib/audio/engine";
 import { getMic, hasMic, micRms, pickMime, setMonitor } from "../lib/audio/mic";
 import { sleep } from "../lib/util";
 import { countDub, dubLimitReached } from "../lib/auth/auth";
-import { roundTakes, setTakeEffect, submitTake, useRoom } from "../net/room";
+import { reportLines, submitTake, useRoom } from "../net/room";
 import { notify, useApp, useGame } from "../state/app";
-import { castRoles, effectOf, mixFor, originalDuck, originalMix, videoDuck } from "../state/game";
+import { effectOf, mixFor, myLines, originalDuck, originalMix, videoDuck } from "../state/game";
 import { Caption } from "./Caption";
+import { RecordingWait } from "./Online";
 
 type Phase = "idle" | "count" | "rec" | "listen";
 
@@ -24,39 +26,44 @@ interface Session {
   recorder: MediaRecorder | null;
 }
 
-/** Record this device's role, try effects, then send the take to the room. */
+/**
+ * Record this device's role line by line: hear how the character says it, record, listen back,
+ * redo if needed, move on. The last line's button submits all of them joined into one voice track.
+ */
 export function Record() {
   const t = useT();
   const game = useGame();
   const { touch } = useApp();
-  const snap = useRoom((s) => s.snap);
-  useRoom((s) => s.takesRev);
+  const { snap, myId } = useRoom();
   const video = useRef<HTMLVideoElement>(null);
   const mixer = useRef<VideoMixer | null>(null);
   const session = useRef<Session | null>(null);
+  const segmentEnd = useRef<number | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [count, setCount] = useState<number | null>(null);
   const [monitorOn, setMonitorOn] = useState(false);
   const [micReady, setMicReady] = useState(hasMic());
   const [videoError, setVideoError] = useState(false);
-  /** Effect chosen before the first take. */
-  const [nextEffect, setNextEffect] = useState<EffectId>("none");
+  const [submitting, setSubmitting] = useState(false);
+  const [listening, setListening] = useState<"mine" | "original">("original");
 
   const roleId = game.myRoleId!;
   const role = game.scene.roles.find((r) => r.id === roleId);
-  const recorded = game.tracks[roleId];
-  const effect = recorded ? effectOf(game, roleId) : nextEffect;
+  const lines = useMemo(() => myLines(game), [game]);
+  const [idx, setIdx] = useState(() => Math.max(0, lines.findIndex((l) => !game.lineTakes[l.id])));
+  const line = lines[idx];
+  const take = line ? game.lineTakes[line.id] : undefined;
+  const effect = effectOf(game, roleId);
   const busy = phase === "count" || phase === "rec";
-  const sent = !!recorded && roundTakes.get(roleId)?.blob === recorded.blob;
-  const castPlayers = snap?.players.filter((p) => p.roleId) ?? [];
-  const submittedCount = castPlayers.filter((p) => p.submitted).length;
+  const recordedCount = lines.filter((l) => game.lineTakes[l.id]).length;
+  const last = idx >= lines.length - 1;
 
   const time = useCallback(() => video.current?.currentTime ?? 0, []);
 
   // Timeline length: the video's own duration once known, else what the lines cover.
   const [videoDuration, setVideoDuration] = useState(0);
   const duration = Math.max(videoDuration, game.scene.duration, ...game.scene.lines.map((l) => l.end + 1));
-  const myLines = useMemo(() => game.scene.lines.filter((l) => l.roleId === roleId), [game.scene.lines, roleId]);
+  const [from, to] = line ? recordWindow(line, duration) : [0, 0];
 
   // How loud the character speaks over time (measured once per scene and role).
   const [reference, setReference] = useState<Envelope | null>(null);
@@ -68,27 +75,55 @@ export function Record() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game.scene, roleId, Math.round(duration)]);
 
-  // Your voice: drawn live while recording, then from the finished take.
+  // Your voice: drawn live while recording, then from the finished takes.
   const liveLevels = useRef<Float32Array | null>(null);
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
   useAnimationFrame(() => {
-    const v = video.current, levels = liveLevels.current;
-    if (!v || !levels || phaseRef.current !== "rec" || v.paused) return;
+    const v = video.current;
+    if (!v || v.paused) return;
+    // A segment ends on its own, a little after the line.
+    if (segmentEnd.current != null && v.currentTime >= segmentEnd.current) {
+      const rec = session.current?.recorder;
+      if (phaseRef.current === "rec") { if (rec?.state === "recording") { v.pause(); rec.stop(); } }
+      else if (phaseRef.current === "listen") stopListening();
+      return;
+    }
+    const levels = liveLevels.current;
+    if (!levels || phaseRef.current !== "rec") return;
     const i = Math.floor(v.currentTime * ENV_RATE);
     if (i < levels.length) levels[i] = Math.max(levels[i], micRms());
   });
-  const mine = useMemo(() => (recorded ? recordingEnvelope(recorded.buffer, recorded.offset, duration) : null), [recorded, duration]);
+  const takesKey = lines.map((l) => (game.lineTakes[l.id] ? l.id : "")).join();
+  const mine = useMemo(() => {
+    const values = new Float32Array(Math.ceil(duration * ENV_RATE));
+    for (const l of lines) {
+      const tk = game.lineTakes[l.id];
+      if (!tk) continue;
+      const env = recordingEnvelope(tk.buffer, tk.offset, duration).values;
+      const [a, b] = recordWindow(l, duration);
+      for (let i = Math.floor(a * ENV_RATE); i < Math.min(values.length, Math.ceil(b * ENV_RATE)); i++) values[i] = Math.max(values[i], env[i]);
+    }
+    return { values };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [takesKey, duration]);
+
   const dropMixer = () => { mixer.current?.destroy(); mixer.current = null; };
-  const rewind = () => {
+  const seek = (at: number) => {
     const v = video.current;
     if (!v) return;
     v.pause();
-    try { v.currentTime = 0; } catch { /* not loaded yet */ }
+    try { v.currentTime = at; } catch { /* not loaded yet */ }
   };
 
   // The video's own soundtrack goes through Web Audio so its volume setting works everywhere.
   useEffect(() => { if (video.current) routeVideo(video.current); }, []);
+
+  // Each line starts cued up at its lead-in.
+  useEffect(() => { dropMixer(); segmentEnd.current = null; seek(from); setPhase("idle"); }, [idx, videoDuration]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Others see how far along you are.
+  useEffect(() => { reportLines(recordedCount); }, [recordedCount]);
 
   // Live monitor follows the selected effect.
   useEffect(() => {
@@ -106,9 +141,33 @@ export function Record() {
     setMonitor(null);
   }, []);
 
+  /** Mine on top of everything else in the scene, for listening back. */
+  const lineMix = (): MixTrack[] => (take ? [{ buffer: take.buffer, offset: take.offset, bus: "voice", effect }, ...mixFor(game, roleId)] : mixFor(game, roleId));
+
+  const playSegment = async (tracks: MixTrack[], duck: VideoDuck, what: "mine" | "original") => {
+    const v = video.current;
+    if (!v || !line) return;
+    await unlockAudio();
+    dropMixer();
+    seek(from);
+    mixer.current = new VideoMixer(v, tracks, { duck });
+    segmentEnd.current = to;
+    setListening(what);
+    setPhase("listen");
+    v.play().catch(() => setPhase("idle"));
+  };
+  const listenOriginal = () => playSegment(originalMix(game), originalDuck(game), "original");
+  const listenMine = () => playSegment(lineMix(), videoDuck(game, roleId), "mine");
+  function stopListening() {
+    dropMixer();
+    segmentEnd.current = null;
+    seek(from);
+    setPhase("idle");
+  }
+
   const record = async () => {
     const v = video.current;
-    if (!v || busy) return;
+    if (!v || busy || !line) return;
     if (dubLimitReached()) { notify(t.auth.limitReached); return; }
     await unlockAudio();
     let stream: MediaStream;
@@ -117,7 +176,10 @@ export function Record() {
     if (!window.MediaRecorder) { notify(t.record.noRecorder); return; }
 
     dropMixer();
-    rewind();
+    segmentEnd.current = null;
+    seek(from);
+    const lineId = line.id;
+    const start = from;
     const s: Session = { cancelled: false, recorder: null };
     session.current = s;
     setPhase("count");
@@ -125,7 +187,7 @@ export function Record() {
       if (s.cancelled) return;
       setCount(n);
       beep(520);
-      await sleep(800);
+      await sleep(600);
     }
     setCount(null);
     if (s.cancelled) return;
@@ -147,6 +209,7 @@ export function Record() {
 
     // While you record, your character's original voice is silenced; everyone else stays as a cue.
     mixer.current = new VideoMixer(v, mixFor(game, roleId), { duck: videoDuck(game, roleId) });
+    segmentEnd.current = to;
     const playing = new Promise<number>((r) => v.addEventListener("playing", () => r(performance.now()), { once: true }));
     const onEnded = () => { if (rec.state !== "inactive") rec.stop(); };
     v.addEventListener("ended", onEnded, { once: true });
@@ -162,20 +225,21 @@ export function Record() {
     v.removeEventListener("ended", onEnded);
     v.pause();
     dropMixer();
+    segmentEnd.current = null;
     if (session.current === s) session.current = null;
 
     liveLevels.current = null;
-    if (s.cancelled || t1 == null || !chunks.length) { setPhase("idle"); return; }
+    if (s.cancelled || t1 == null || !chunks.length) { setPhase("idle"); seek(start); return; }
     const blob = new Blob(chunks, { type: rec.mimeType || mime || "audio/webm" });
     try {
-      game.tracks[roleId] = { blob, buffer: await decodeBlob(blob), offset: (t1 - t0) / 1000 };
-      game.effects[roleId] = effect;
+      // Track time = video time + offset; the video started at `start`, (t1 - t0) after the recorder.
+      game.lineTakes[lineId] = { blob, buffer: await decodeBlob(blob), offset: (t1 - t0) / 1000 - start };
       touch();
     } catch {
       notify(t.record.unreadable);
     }
     setPhase("idle");
-    rewind();
+    seek(start);
   };
 
   const stop = () => {
@@ -184,49 +248,36 @@ export function Record() {
     if (phase === "rec" && s?.recorder && s.recorder.state !== "inactive") { video.current?.pause(); s.recorder.stop(); }
   };
 
-  /** "dub": the scene with your take; "original": the scene as it was, to hear how the character says it. */
-  const [listening, setListening] = useState<"dub" | "original">("dub");
-  const listen = async (what: "dub" | "original") => {
-    const v = video.current;
-    if (!v) return;
-    await unlockAudio();
-    dropMixer();
-    rewind();
-    mixer.current = what === "original"
-      ? new VideoMixer(v, originalMix(game), { duck: originalDuck(game) })
-      : new VideoMixer(v, mixFor(game), { duck: videoDuck(game) });
-    setListening(what);
-    setPhase("listen");
-    v.addEventListener("ended", () => setPhase((p) => (p === "listen" ? "idle" : p)), { once: true });
-    v.play().catch(() => setPhase("idle"));
-  };
-
-  const stopListening = () => { dropMixer(); rewind(); setPhase("idle"); };
-
   const chooseEffect = (id: EffectId) => {
-    setNextEffect(id);
-    if (!recorded) return;
     game.effects[roleId] = id;
     touch();
-    if (sent) setTakeEffect(roleId, id);
     // Re-style what is playing right now.
-    if (phase === "listen" && listening === "dub" && video.current) { dropMixer(); mixer.current = new VideoMixer(video.current, mixFor(game), { duck: videoDuck(game) }); }
+    if (phase === "listen" && listening === "mine") listenMine();
   };
 
-  const redo = () => {
-    delete game.tracks[roleId];
-    touch();
-    record();
-  };
+  const goTo = (i: number) => { if (!busy) setIdx(Math.max(0, Math.min(lines.length - 1, i))); };
 
-  /** Each round's line is counted once on the account, however many times it's re-sent. */
-  const send = async () => {
-    if (!recorded) return;
-    if (!game.dubCounted) {
-      if (!(await countDub(game.scene.title))) { notify(t.auth.limitReached); return; }
-      game.dubCounted = true;
+  /** Join every line into one voice track and send it. Each round is counted once on the account. */
+  const submit = async () => {
+    const missing = lines.findIndex((l) => !game.lineTakes[l.id]);
+    if (missing >= 0) { setIdx(missing); notify(t.record.lineOf(missing + 1, lines.length)); return; }
+    if (phase === "listen") stopListening();
+    setSubmitting(true);
+    try {
+      if (!game.dubCounted) {
+        if (!(await countDub(game.scene.title))) { notify(t.auth.limitReached); return; }
+        game.dubCounted = true;
+      }
+      const track = await composeLines(lines, game.lineTakes, duration);
+      game.tracks[roleId] = track;
+      game.effects[roleId] = effect;
+      touch();
+      submitTake({ roleId, blob: track.blob, offset: track.offset, effect });
+    } catch {
+      notify(t.record.unreadable);
+    } finally {
+      setSubmitting(false);
     }
-    submitTake({ roleId, blob: recorded.blob, offset: recorded.offset, effect });
   };
 
   // Space starts/stops recording.
@@ -235,7 +286,7 @@ export function Record() {
     if (e.code !== "Space" || /INPUT|TEXTAREA|SELECT|BUTTON/.test((e.target as HTMLElement).tagName)) return;
     e.preventDefault();
     if (busy) stop();
-    else if (!recorded && phase === "idle") record();
+    else if (!take && phase === "idle") record();
   };
   useEffect(() => {
     const h = (e: KeyboardEvent) => keyRef.current(e);
@@ -243,24 +294,23 @@ export function Record() {
     return () => document.removeEventListener("keydown", h);
   }, []);
 
-  const hearsOthers = mixFor(game, roleId).length > 0;
+  // Sent: wait for the others with everyone's progress.
+  if (snap && snap.players.find((p) => p.id === myId)?.submitted) return <RecordingWait snap={snap} />;
+
   const myName = game.cast[roleId];
+  const playingWhat = phase === "listen" ? listening : null;
 
   return (
     <div className="wrap stack">
-      <h2>{myName ? `${myName}, ${role?.name ?? ""}` : role?.name}</h2>
-
-      <div className="chips" aria-label={t.record.passes}>
-        {castRoles(game).map((r) => {
-          const done = !!game.tracks[r.id];
-          const fx = game.effects[r.id];
-          return (
-            <span key={r.id} className={"chip pass" + (done ? " done" : "") + (r.id === roleId ? " cur" : "")} style={{ ["--c" as string]: r.color }}>
-              {r.name}{done && fx && fx !== "none" ? ` · ${t.effects[fx][0]}` : ""}
-            </span>
-          );
-        })}
+      <div className="row">
+        <h2 style={{ flex: 1 }}>{lines.length ? t.record.lineOf(idx + 1, lines.length) : role?.name}</h2>
+        {role && <span className="chip tag" style={{ ["--c" as string]: role.color }}>{myName ? `${myName} · ${role.name}` : role.name}</span>}
       </div>
+      {lines.length > 1 && (
+        <div className="chips" aria-hidden="true">
+          {lines.map((l, i) => <span key={l.id} className={"chip pass" + (game.lineTakes[l.id] ? " done" : "") + (i === idx ? " cur" : "")} style={{ ["--c" as string]: role?.color }}>{i + 1}</span>)}
+        </div>
+      )}
 
       <div className={"stage" + (phase === "rec" ? " recording" : "")}>
         <video ref={video} src={game.videoUrl} playsInline preload="auto" onError={() => setVideoError(true)} onLoadedMetadata={(e) => { const d = e.currentTarget.duration; if (isFinite(d)) setVideoDuration(d); }} />
@@ -270,43 +320,53 @@ export function Record() {
         <Progress video={video} />
       </div>
 
-      <Caption lines={game.scene.lines} roles={game.scene.roles} focusRoleId={phase === "listen" ? null : roleId} time={time} />
-      <VoiceTrack
-        reference={reference}
-        mine={mine}
-        live={liveLevels}
-        lines={myLines}
-        color={role?.color ?? "#f2a516"}
-        time={time}
-        labels={{ character: t.record.trackCharacter(role?.name ?? ""), you: t.record.trackYou, measuring: t.record.trackMeasuring }}
-      />
+      {line ? (
+        <>
+          <Caption lines={game.scene.lines} roles={game.scene.roles} focusRoleId={roleId} time={time} />
+          <VoiceTrack
+            reference={reference}
+            mine={recordedCount ? mine : null}
+            live={liveLevels}
+            lines={lines}
+            color={role?.color ?? "#f2a516"}
+            time={time}
+            labels={{ character: t.record.trackCharacter(role?.name ?? ""), you: t.record.trackYou, measuring: t.record.trackMeasuring }}
+          />
+        </>
+      ) : <p className="muted">{t.record.noLines}</p>}
 
-      <div className="row rec-controls">
-        {phase === "count" && <button className="small" onClick={stop}>{t.common.cancel}</button>}
-        {phase === "rec" && <button className="rec" onClick={stop}>{t.record.stopRec}</button>}
-        {(phase === "idle" || phase === "listen") && !recorded && (
-          <>
-            {phase === "listen" ? <button onClick={stopListening}>{t.common.stop}</button> : <button onClick={() => listen("original")}>{t.record.listenOriginal}</button>}
-            <button className="rec" onClick={() => { stopListening(); record(); }}>{t.record.rec}</button>
-          </>
-        )}
-        {(phase === "idle" || phase === "listen") && recorded && (
-          <>
-            {phase === "listen" && listening === "dub" ? <button onClick={stopListening}>{t.common.stop}</button> : <button onClick={() => listen("dub")}>{t.record.listen}</button>}
-            {phase === "listen" && listening === "original" ? <button onClick={stopListening}>{t.common.stop}</button> : <button onClick={() => listen("original")}>{t.record.original}</button>}
-            <button onClick={redo}>{t.record.rerecord}</button>
-            <div className="spacer" />
-            <button className="primary" disabled={sent} onClick={send}>{sent ? t.online.sent : t.online.send}</button>
-          </>
+      {line && (
+        <div className="row rec-controls">
+          {phase === "count" && <button className="small" onClick={stop}>{t.common.cancel}</button>}
+          {phase === "rec" && <button className="rec" onClick={stop}>{t.record.stopRec}</button>}
+          {!busy && (
+            <>
+              {playingWhat === "original" ? <button onClick={stopListening}>{t.common.stop}</button> : <button onClick={listenOriginal}>{t.record.listenOriginal}</button>}
+              {take && (playingWhat === "mine" ? <button onClick={stopListening}>{t.common.stop}</button> : <button onClick={listenMine}>{t.record.listen}</button>)}
+              <button className={take ? "" : "rec"} onClick={() => { if (phase === "listen") stopListening(); record(); }}>{take ? t.record.rerecord : t.record.rec}</button>
+            </>
+          )}
+        </div>
+      )}
+
+      <div className="row">
+        {idx > 0 && <button disabled={busy || submitting} onClick={() => goTo(idx - 1)}>{t.record.prev}</button>}
+        <div className="spacer" />
+        {submitting && <span className="muted fine">{t.record.submitting}</span>}
+        {last ? (
+          <button className="primary" disabled={busy || submitting || (!!line && !take)} onClick={submit}>{t.record.submit}</button>
+        ) : (
+          <button className="primary" disabled={busy || !take} onClick={() => goTo(idx + 1)}>{t.record.next}</button>
         )}
       </div>
 
       {micReady && <MicMeter />}
-      {sent && <p><b>{t.online.waitOthers(submittedCount, castPlayers.length)}</b></p>}
-      <p className="muted fine">
-        {sent ? t.online.sentHint : recorded ? t.record.hintDone : hearsOthers ? t.record.hintHear : t.record.hintSolo}
-        {!recorded && <span className="desktop-only"> {t.record.spaceHint}</span>}
-      </p>
+      {line && (
+        <p className="muted fine">
+          {take ? (last ? t.record.hintLastDone : t.record.hintLineDone) : t.record.hintLine}
+          {!take && <span className="desktop-only"> {t.record.spaceHint}</span>}
+        </p>
+      )}
 
       <section className="panel stack" aria-labelledby="fx-h">
         <div className="row">

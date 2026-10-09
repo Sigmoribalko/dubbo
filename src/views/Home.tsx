@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useT } from "../i18n";
-import { normalizeCode } from "../net/room";
+import { forgetLastRoom, lastRoom, normalizeCode, resumeRoom } from "../net/room";
 import { useApp } from "../state/app";
 
 /** Two ways in: play with strangers, or with your own friends. */
@@ -9,8 +9,21 @@ export function Home() {
   const h = t.home;
   const go = useApp((s) => s.go);
   const [code, setCode] = useState("");
+  const [last, setLast] = useState(lastRoom);
   return (
     <div className="wrap stack home">
+      {last && (
+        <section className="panel notice stack" aria-live="polite">
+          <p><b>{last.host ? t.online.resumeHost(last.code) : t.online.resumeGuest(last.code)}</b>{last.scene ? <span className="muted"> · {last.scene}</span> : null}</p>
+          <div className="row">
+            <button className="primary" onClick={() => {
+              if (last.host) { resumeRoom(); go({ name: "online" }); }
+              else go({ name: "online", code: last.code });
+            }}>{t.online.resume}</button>
+            <button className="ghost" onClick={() => { forgetLastRoom(); setLast(null); }}>{t.online.resumeForget}</button>
+          </div>
+        </section>
+      )}
       <header className="hero">
         <h1>{h.title}</h1>
         <p>{h.lead}</p>

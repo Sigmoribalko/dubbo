@@ -20,7 +20,7 @@ function clean(v: unknown): PublicRoomInfo | null {
   if (!r || typeof r !== "object" || r.v !== 1) return null;
   const str = (x: unknown, n: number) => String(x ?? "").slice(0, n);
   const num = (x: unknown) => { const n = Math.floor(Number(x)); return Number.isFinite(n) ? Math.max(0, Math.min(99, n)) : 0; };
-  const phase = r.phase === "lobby" || r.phase === "recording" || r.phase === "screening" ? r.phase : null;
+  const phase = r.phase === "lobby" || r.phase === "casting" || r.phase === "recording" || r.phase === "screening" ? r.phase : null;
   const code = normalizeCode(str(r.code, 10));
   if (!phase || code.length !== 5) return null;
   return {
@@ -29,7 +29,7 @@ function clean(v: unknown): PublicRoomInfo | null {
   };
 }
 
-export const joinable = (r: FoundRoom) => r.phase === "lobby" && r.players < r.capacity;
+export const joinable = (r: FoundRoom) => (r.phase === "lobby" || r.phase === "casting") && r.players < r.capacity;
 
 /** Probe all public slots. Calls `onFound` as rooms answer; resolves when the sweep is done. */
 export function findRooms(onFound: (room: FoundRoom) => void): { done: Promise<void>; cancel(): void } {
