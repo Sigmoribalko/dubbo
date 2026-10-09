@@ -28,8 +28,17 @@ Live: https://dubparty.ru (GitHub Pages, repo Sigmoribalko/dubparty). Owner talk
   (CI injects them as VITE_SUPABASE_*; locally use `.env.local`, git-ignored). Never use or ask for the secret key.
 - SQL already applied: `supabase/migrations/001_profiles_and_dubs.sql` (profiles, dubs, `use_dub` RPC with optional
   `dubs_limit`) and `002_best_voice_wins.sql` (`profiles.wins`, `record_win` once per room round).
+- `003_hardening.sql` (record_win limits: 1 win / 2 min, 30 / day; name length cap; write grants revoked) must be
+  run by the owner in the SQL Editor — not applied automatically.
 - Email codes sent via Resend SMTP from noreply@mail.dubparty.ru (domain mail.dubparty.ru set up in Resend).
 - Dub limits are not enforced yet (`dubs_limit` null = unlimited); guests can play without an account.
+
+## Security
+- Peers are untrusted (public rooms = strangers). `src/net/link.ts` caps file size, enforces in-order frames, keeps only
+  audio/video/image blob types. `src/net/room.ts` host accepts a take only for the sender's own role, effects only from
+  the role owner, votes/picks only for real roles; guests accept only media keys the scene uses.
+- Build injects a CSP `<meta>` with the hash of the inlined app script (`vite.config.ts`, plugin `dubparty-csp`).
+  New external hosts (APIs, CDNs) must be added to its `connect-src`/`script-src` or they will be blocked.
 
 ## Preferences learned
 - Online-only game, one format (whole group dubs a scene, vote for best voice). No local single-device mode, no team mode.

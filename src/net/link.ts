@@ -12,6 +12,10 @@ import type { DataConnection } from "peerjs";
 const CHUNK = 64 * 1024;
 const HIGH_WATER = 4 * 1024 * 1024;
 const LOW_WATER = 512 * 1024;
+/** Anything bigger than this from a peer is dropped (a scene video is well under it). */
+const MAX_FILE = 512 * 1024 * 1024;
+/** Peers are strangers: only media types reach blob URLs, never something a browser would render as a page. */
+const SAFE_TYPE = /^(audio|video|image)\/[a-z0-9.+-]+$/i;
 
 export type Json = Record<string, unknown> & { t: string };
 
@@ -99,26 +103,37 @@ export class Link {
     if (typeof data === "string") {
       let msg: Json;
       try { msg = JSON.parse(data) as Json; } catch { return; }
+      if (!msg || typeof msg !== "object" || typeof msg.t !== "string") return;
       if (msg.t === "file-begin") {
-        this.incoming.set(String(msg.id), { meta: msg.meta as FileMeta, size: Number(msg.size), type: String(msg.type || ""), parts: [], received: 0 });
+        const size = Number(msg.size);
+        const meta = msg.meta as FileMeta;
+        if (!Number.isSafeInteger(size) || size < 0 || size > MAX_FILE || !meta || typeof meta !== "object") return;
+        const type = String(msg.type || "");
+        this.incoming.set(String(msg.id), { meta, size, type: SAFE_TYPE.test(type) ? type : "", parts: [], received: 0 });
       } else if (msg.t === "file-end") {
         const f = this.incoming.get(String(msg.id));
         this.incoming.delete(String(msg.id));
-        if (f) this.onFile(f.meta, new Blob(f.parts, { type: f.type }));
+        if (f && f.received === f.size) this.onFile(f.meta, new Blob(f.parts, { type: f.type }));
       } else {
         this.onMessage(msg);
       }
       return;
     }
     const buf = data instanceof ArrayBuffer ? data : ArrayBuffer.isView(data) ? (data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer) : null;
-    if (!buf) return;
-    const view = new DataView(buf);
-    const hlen = view.getUint32(0);
-    const header = JSON.parse(dec.decode(new Uint8Array(buf, 4, hlen))) as { f: string; s: number };
-    const f = this.incoming.get(header.f);
+    if (!buf || buf.byteLength < 4) return;
+    const hlen = new DataView(buf).getUint32(0);
+    if (hlen > 256 || 4 + hlen > buf.byteLength) return;
+    let header: { f: string; s: number };
+    try { header = JSON.parse(dec.decode(new Uint8Array(buf, 4, hlen))); } catch { return; }
+    const f = this.incoming.get(String(header?.f));
     if (!f) return;
     const payload = buf.slice(4 + hlen);
-    f.parts[header.s] = payload;
+    // Frames arrive in order on a reliable channel; anything else is a misbehaving peer.
+    if (header.s !== f.parts.length || payload.byteLength > CHUNK || f.received + payload.byteLength > f.size) {
+      this.incoming.delete(String(header.f));
+      return;
+    }
+    f.parts.push(payload);
     f.received += payload.byteLength;
     this.onFileProgress(f.meta, f.received, f.size);
   }
