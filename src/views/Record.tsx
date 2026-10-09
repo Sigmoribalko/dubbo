@@ -11,6 +11,7 @@ import type { EffectId } from "../lib/audio/effects";
 import { decodeBlob, routeVideo, unlockAudio, VideoMixer } from "../lib/audio/engine";
 import { getMic, hasMic, micRms, pickMime, setMonitor } from "../lib/audio/mic";
 import { sleep } from "../lib/util";
+import { countDub, dubLimitReached } from "../lib/auth/auth";
 import { roundTakes, setTakeEffect, submitTake, useRoom } from "../net/room";
 import { notify, useApp, useGame } from "../state/app";
 import { castRoles, effectOf, mixFor, originalDuck, originalMix, videoDuck } from "../state/game";
@@ -108,6 +109,7 @@ export function Record() {
   const record = async () => {
     const v = video.current;
     if (!v || busy) return;
+    if (dubLimitReached()) { notify(t.auth.limitReached); return; }
     await unlockAudio();
     let stream: MediaStream;
     try { stream = await getMic(); setMicReady(true); }
@@ -217,8 +219,14 @@ export function Record() {
     record();
   };
 
-  const send = () => {
-    if (recorded) submitTake({ roleId, blob: recorded.blob, offset: recorded.offset, effect });
+  /** Each round's line is counted once on the account, however many times it's re-sent. */
+  const send = async () => {
+    if (!recorded) return;
+    if (!game.dubCounted) {
+      if (!(await countDub(game.scene.title))) { notify(t.auth.limitReached); return; }
+      game.dubCounted = true;
+    }
+    submitTake({ roleId, blob: recorded.blob, offset: recorded.offset, effect });
   };
 
   // Space starts/stops recording.

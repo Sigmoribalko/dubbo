@@ -74,7 +74,12 @@ src/
 4. **Authentication → Emails → SMTP Settings**: подключите свой почтовый сервис (Resend, Brevo, Mailgun…).
    Встроенная почта Supabase отправляет письма только адресам участников проекта и с жёстким лимитом,
    для настоящих пользователей нужен свой SMTP.
-5. **Project Settings → API**: возьмите *Project URL* и ключ *anon public* и задайте их как переменные репозитория:
+5. **SQL Editor → New query**: вставьте и выполните `supabase/migrations/001_profiles_and_dubs.sql`.
+   Появятся таблицы `profiles` (профиль, тариф, счётчик и лимит озвучек) и `dubs` (история),
+   профиль создаётся автоматически при регистрации, а функция `use_dub` атомарно считает озвучку
+   и отказывает, если лимит исчерпан. Чтобы ограничить бесплатный тариф, например, 20 озвучками:
+   `update public.profiles set dubs_limit = 20 where plan = 'free';`
+6. **Project Settings → API**: возьмите *Project URL* и ключ *anon public* и задайте их как переменные репозитория:
    ```bash
    gh variable set SUPABASE_URL --body "https://xxxx.supabase.co"
    gh variable set SUPABASE_ANON_KEY --body "eyJ..."

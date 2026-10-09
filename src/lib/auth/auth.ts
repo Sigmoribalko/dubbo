@@ -15,17 +15,61 @@ function sb(): SupabaseClient {
   return client;
 }
 
+/** Row of `public.profiles` (see supabase/migrations). */
+export interface Profile {
+  id: string;
+  name: string | null;
+  plan: string;
+  dubs_used: number;
+  /** null = unlimited. */
+  dubs_limit: number | null;
+}
+
 interface AuthState {
   ready: boolean;
   user: User | null;
+  profile: Profile | null;
 }
 
-export const useAuth = create<AuthState>(() => ({ ready: !authEnabled, user: null }));
+export const useAuth = create<AuthState>(() => ({ ready: !authEnabled, user: null, profile: null }));
+
+export async function refreshProfile() {
+  const user = useAuth.getState().user;
+  if (!authEnabled || !user) { useAuth.setState({ profile: null }); return; }
+  const { data } = await sb().from("profiles").select("id, name, plan, dubs_used, dubs_limit").eq("id", user.id).maybeSingle();
+  useAuth.setState({ profile: (data as Profile | null) ?? null });
+}
 
 export function initAuth() {
   if (!authEnabled) return;
-  sb().auth.getSession().then(({ data }) => useAuth.setState({ ready: true, user: data.session?.user ?? null }));
-  sb().auth.onAuthStateChange((_event, session: Session | null) => useAuth.setState({ ready: true, user: session?.user ?? null }));
+  const apply = (session: Session | null) => {
+    const user = session?.user ?? null;
+    const changed = user?.id !== useAuth.getState().user?.id;
+    useAuth.setState({ ready: true, user });
+    if (changed) refreshProfile();
+  };
+  sb().auth.getSession().then(({ data }) => apply(data.session));
+  sb().auth.onAuthStateChange((_event, session) => apply(session));
+}
+
+/** Out of dubs on the current plan? (Guests and accounts without a limit never are.) */
+export function dubLimitReached(): boolean {
+  const p = useAuth.getState().profile;
+  return !!p && p.dubs_limit != null && p.dubs_used >= p.dubs_limit;
+}
+
+/**
+ * Count one dub on the server (atomic, can't be faked from the page). Returns false when the
+ * plan's limit is reached. Guests and an unreachable server don't block play.
+ */
+export async function countDub(scene: string): Promise<boolean> {
+  if (!authEnabled || !useAuth.getState().user) return true;
+  const { data, error } = await sb().rpc("use_dub", { scene_title: scene });
+  if (error) return true;
+  const res = data as { allowed: boolean; used: number; limit: number | null };
+  const p = useAuth.getState().profile;
+  if (p) useAuth.setState({ profile: { ...p, dubs_used: res.used, dubs_limit: res.limit } });
+  return res.allowed;
 }
 
 export const displayName = (u: User | null) => (u?.user_metadata?.name as string | undefined) || u?.email?.split("@")[0] || "";

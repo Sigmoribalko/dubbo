@@ -70,7 +70,7 @@ export function SettingsModal({ onClose }: { onClose(): void }) {
       <section className="settings-group" aria-label={s.playback}>
         <h4>{s.playback}</h4>
         <Slider k="master" label={s.master} />
-        <Slider k="voices" label={s.voices} max={200} />
+        <Slider k="voices" label={s.voices} />
         <Slider k="video" label={s.video} hint={s.videoHint} />
         <Slider k="bg" label={s.bg} />
         <Slider k="lines" label={s.lines} />

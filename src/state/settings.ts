@@ -44,7 +44,11 @@ const KEY = "dubl-settings";
 function load(): Settings {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<Settings>) };
+    if (raw) {
+      const saved = { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<Settings>) };
+      saved.voices = Math.min(100, saved.voices); // the scale used to go to 200%
+      return saved;
+    }
   } catch { /* storage unavailable or corrupt */ }
   return { ...DEFAULT_SETTINGS };
 }

@@ -23,6 +23,8 @@ export interface Game {
   effects: Record<string, EffectId>;
   /** The role this device records, or null for a spectator. */
   myRoleId: string | null;
+  /** This round's dub has been counted on the player's account. */
+  dubCounted?: boolean;
 }
 
 export async function createGame(opts: {
