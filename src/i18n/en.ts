@@ -158,6 +158,8 @@ export const en: Dict = {
     rec: "● Record",
     stopRec: "■ Stop",
     listen: "Play back",
+    listenOriginal: "Hear the original",
+    original: "Original",
     rerecord: "Redo",
     hintDone: "Take recorded. Play it back with the video, change the effect or move on.",
     hintHear: "The backing track and other voices will play while you record. Wear headphones so they don't leak into the mic.",

@@ -13,7 +13,7 @@ import { getMic, hasMic, micRms, pickMime, setMonitor } from "../lib/audio/mic";
 import { sleep } from "../lib/util";
 import { roundTakes, setTakeEffect, submitTake, useRoom } from "../net/room";
 import { notify, useApp, useGame } from "../state/app";
-import { castRoles, effectOf, mixFor, videoDuck } from "../state/game";
+import { castRoles, effectOf, mixFor, originalDuck, originalMix, videoDuck } from "../state/game";
 import { Caption } from "./Caption";
 
 type Phase = "idle" | "count" | "rec" | "listen";
@@ -182,13 +182,18 @@ export function Record() {
     if (phase === "rec" && s?.recorder && s.recorder.state !== "inactive") { video.current?.pause(); s.recorder.stop(); }
   };
 
-  const listen = async () => {
+  /** "dub": the scene with your take; "original": the scene as it was, to hear how the character says it. */
+  const [listening, setListening] = useState<"dub" | "original">("dub");
+  const listen = async (what: "dub" | "original") => {
     const v = video.current;
     if (!v) return;
     await unlockAudio();
     dropMixer();
     rewind();
-    mixer.current = new VideoMixer(v, mixFor(game), { duck: videoDuck(game) });
+    mixer.current = what === "original"
+      ? new VideoMixer(v, originalMix(game), { duck: originalDuck(game) })
+      : new VideoMixer(v, mixFor(game), { duck: videoDuck(game) });
+    setListening(what);
     setPhase("listen");
     v.addEventListener("ended", () => setPhase((p) => (p === "listen" ? "idle" : p)), { once: true });
     v.play().catch(() => setPhase("idle"));
@@ -203,7 +208,7 @@ export function Record() {
     touch();
     if (sent) setTakeEffect(roleId, id);
     // Re-style what is playing right now.
-    if (phase === "listen" && video.current) { dropMixer(); mixer.current = new VideoMixer(video.current, mixFor(game), { duck: videoDuck(game) }); }
+    if (phase === "listen" && listening === "dub" && video.current) { dropMixer(); mixer.current = new VideoMixer(video.current, mixFor(game), { duck: videoDuck(game) }); }
   };
 
   const redo = () => {
@@ -271,10 +276,16 @@ export function Record() {
       <div className="row rec-controls">
         {phase === "count" && <button className="small" onClick={stop}>{t.common.cancel}</button>}
         {phase === "rec" && <button className="rec" onClick={stop}>{t.record.stopRec}</button>}
-        {phase === "idle" && !recorded && <button className="rec" onClick={record}>{t.record.rec}</button>}
+        {(phase === "idle" || phase === "listen") && !recorded && (
+          <>
+            {phase === "listen" ? <button onClick={stopListening}>{t.common.stop}</button> : <button onClick={() => listen("original")}>{t.record.listenOriginal}</button>}
+            <button className="rec" onClick={() => { stopListening(); record(); }}>{t.record.rec}</button>
+          </>
+        )}
         {(phase === "idle" || phase === "listen") && recorded && (
           <>
-            {phase === "listen" ? <button onClick={stopListening}>{t.common.stop}</button> : <button onClick={listen}>{t.record.listen}</button>}
+            {phase === "listen" && listening === "dub" ? <button onClick={stopListening}>{t.common.stop}</button> : <button onClick={() => listen("dub")}>{t.record.listen}</button>}
+            {phase === "listen" && listening === "original" ? <button onClick={stopListening}>{t.common.stop}</button> : <button onClick={() => listen("original")}>{t.record.original}</button>}
             <button onClick={redo}>{t.record.rerecord}</button>
             <div className="spacer" />
             <button className="primary" disabled={sent} onClick={send}>{sent ? t.online.sent : t.online.send}</button>
