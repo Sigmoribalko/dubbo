@@ -38,6 +38,10 @@ function csp(): Plugin {
         "object-src 'none'",
         "base-uri 'none'",
         "form-action 'self'",
+        // DOM XSS: the browser refuses raw strings in innerHTML & co.
+        "require-trusted-types-for 'script'",
+        "trusted-types 'none'",
+        "upgrade-insecure-requests",
       ].join("; ");
       const meta =
         `<meta http-equiv="Content-Security-Policy" content="${policy}" />\n` +
