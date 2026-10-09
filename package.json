@@ -1,8 +1,8 @@
 {
-  "name": "dubbo",
+  "name": "dubparty",
   "private": true,
   "version": "2.0.0",
-  "description": "Dubbo — dub movie scenes with friends",
+  "description": "DubParty — online dubbing game with friends",
   "type": "module",
   "scripts": {
     "dev": "vite",

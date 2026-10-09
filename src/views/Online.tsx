@@ -325,7 +325,7 @@ function Invite({ code }: { code: string }) {
         <div className="row">
           {link && <button className="small primary" onClick={() => copy(link)}>{t.online.copyLink}</button>}
           <button className="small" onClick={() => copy(code)}>{t.online.copyCode}</button>
-          {canShare && <button className="small" onClick={() => navigator.share({ title: "Dubbo", text: t.online.shareText(code), url: link! }).catch(() => {})}>{t.online.share}</button>}
+          {canShare && <button className="small" onClick={() => navigator.share({ title: "DubParty", text: t.online.shareText(code), url: link! }).catch(() => {})}>{t.online.share}</button>}
         </div>
         <p className="muted fine">{link ? t.online.inviteHint : t.online.fileHint}</p>
       </div>

@@ -60,7 +60,7 @@ export function App() {
   return (
     <div className={"app" + (inGame ? " in-game" : "")}>
       <header className="topbar">
-        <button className="wordmark" onClick={() => navigate({ name: "home" })} aria-label={t.header.home}>Dubbo<i>.</i></button>
+        <button className="wordmark" onClick={() => navigate({ name: "home" })} aria-label={t.header.home}>Dub<b>Party</b><i>.</i></button>
         <nav className="top-nav" aria-label={t.header.home}>
           <button className={section === "play" ? "on" : ""} aria-current={section === "play" ? "page" : undefined} onClick={() => navigate({ name: "home" })}>{t.nav.play}</button>
           <button className={section === "packs" ? "on" : ""} aria-current={section === "packs" ? "page" : undefined} onClick={() => navigate({ name: "packs" })}>{t.nav.packs}</button>

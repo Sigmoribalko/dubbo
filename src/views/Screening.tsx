@@ -143,7 +143,7 @@ export function Screening() {
           src={game.videoUrl}
           tracks={mixFor(game)}
           duck={videoDuck(game)}
-          fileName={`Dubbo - ${safeFileName(game.scene.title || t.common.scene)}`}
+          fileName={`DubParty - ${safeFileName(game.scene.title || t.common.scene)}`}
           onDone={() => setExporting(false)}
         />
       )}

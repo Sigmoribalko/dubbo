@@ -73,3 +73,9 @@ input[type="file"] { display: none; }
 .field { display: grid; gap: 4px; font-size: 0.88rem; color: var(--muted); }
 .grid2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; }
 @media (max-width: 820px) { .grid2 { grid-template-columns: 1fr; } }
+
+/* Static description in index.html, shown until the app takes over (and to search engines). */
+.seo { max-width: 1000px; margin: 0 auto; padding: 32px 16px; }
+.seo h1 { font-size: clamp(1.8rem, 6vw, 3rem); font-weight: 900; margin-bottom: 14px; }
+.seo h2 { font-size: 1.2rem; margin: 22px 0 8px; }
+.seo p, .seo li { color: var(--muted); max-width: 62ch; }

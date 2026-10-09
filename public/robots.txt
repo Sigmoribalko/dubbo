@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://sigmoribalko.github.io/dubparty/sitemap.xml

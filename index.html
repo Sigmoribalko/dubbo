@@ -3,17 +3,75 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="description" content="Dubbo — dub movie scenes with friends, twist your voice with effects and vote for the best take. Озвучивайте сцены с друзьями." />
+    <title>DubParty — игра в озвучку фильмов с друзьями онлайн</title>
+    <meta name="description" content="DubParty (Дабпати) — бесплатная онлайн-игра в озвучку: переозвучивайте сцены из фильмов и мультфильмов с друзьями или случайными игроками, меняйте голос эффектами и голосуйте за лучший дубляж. Online dubbing game with friends." />
+    <link rel="canonical" href="https://sigmoribalko.github.io/dubparty/" />
+    <meta name="robots" content="index, follow" />
+    <meta name="application-name" content="DubParty" />
     <meta name="theme-color" content="#131312" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#efefec" media="(prefers-color-scheme: light)" />
+
+    <!-- Link previews (Telegram, VK, WhatsApp, X, Discord) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="DubParty" />
+    <meta property="og:title" content="DubParty — игра в озвучку фильмов с друзьями" />
+    <meta property="og:description" content="Озвучьте сцену из фильма вместе с друзьями, каждый со своего телефона. Эффекты голоса, общий просмотр и голосование за лучший голос." />
+    <meta property="og:url" content="https://sigmoribalko.github.io/dubparty/" />
+    <meta property="og:image" content="https://sigmoribalko.github.io/dubparty/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="DubParty — игра в озвучку фильмов с друзьями онлайн" />
+    <meta property="og:locale" content="ru_RU" />
+    <meta property="og:locale:alternate" content="en_US" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="DubParty — online dubbing game with friends" />
+    <meta name="twitter:description" content="Dub movie scenes together, each on your own phone. Voice effects, shared screening and a vote for the best voice." />
+    <meta name="twitter:image" content="https://sigmoribalko.github.io/dubparty/og.png" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "DubParty",
+        "alternateName": ["Дабпати", "Dub Party"],
+        "url": "https://sigmoribalko.github.io/dubparty/",
+        "description": "Онлайн-игра в озвучку фильмов с друзьями: каждый озвучивает свою роль со своего телефона, эффекты голоса, голосование за лучший дубляж.",
+        "applicationCategory": "GameApplication",
+        "genre": "Party game",
+        "operatingSystem": "Web",
+        "inLanguage": ["ru", "en"],
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "RUB" }
+      }
+    </script>
+
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23141413'/%3E%3Ccircle cx='16' cy='16' r='7' fill='%23e8452c'/%3E%3C/svg%3E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;900&family=Manrope:wght@400;600;700&display=swap&subset=cyrillic" rel="stylesheet" />
-    <title>Dubbo</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- What search engines (and visitors without JavaScript) see; replaced by the app on load. -->
+      <main class="seo">
+        <h1>DubParty — игра в озвучку фильмов с друзьями</h1>
+        <p>
+          DubParty (Дабпати) — бесплатная онлайн-игра для компании: вы переозвучиваете сцены из фильмов, мультфильмов и мемов,
+          а потом вместе смотрите, что получилось. Каждый играет со своего телефона или компьютера, ничего устанавливать не нужно.
+        </p>
+        <h2>Как играть</h2>
+        <ul>
+          <li>Создайте комнату и пригласите друзей по коду или ссылке — или найдите игру со случайными игроками.</li>
+          <li>Сцена скачается ко всем сама, роли разбираются нажатием или раздаются случайно.</li>
+          <li>Каждый озвучивает свою роль: волна громкости показывает, когда и как говорит персонаж, а голос героя в ролике убирается.</li>
+          <li>Меняйте голос эффектами: бурундук, великан, робот, рация, телефон, эхо, пещера, под водой.</li>
+          <li>Смотрите дубляж вместе, голосуйте за лучший голос и сохраняйте видео.</li>
+        </ul>
+        <h2>Online dubbing game</h2>
+        <p>DubParty is a free online dubbing party game: re-voice movie scenes with friends or random players, each on their own phone, add voice effects and vote for the best take.</p>
+      </main>
+    </div>
+    <noscript>Для игры включите JavaScript. / Please enable JavaScript to play.</noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

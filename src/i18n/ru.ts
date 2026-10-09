@@ -2,7 +2,7 @@ import type { EffectId } from "../lib/audio/effects";
 
 export const ru = {
   meta: {
-    title: "Dubbo — озвучка сцен с друзьями",
+    title: "DubParty — игра в озвучку фильмов с друзьями онлайн",
   },
   common: {
     loading: "Загрузка",
@@ -26,7 +26,7 @@ export const ru = {
     onScreen: "На экране",
   },
   header: {
-    home: "Dubbo, на главную",
+    home: "DubParty, на главную",
     theme: "Сменить тему",
     settings: "Настройки",
     language: "Язык",
@@ -291,8 +291,8 @@ export const ru = {
     copyCode: "Скопировать код",
     copied: "Скопировано",
     share: "Поделиться",
-    shareText: (code: string) => `Заходи озвучивать сцену в Dubbo! Код комнаты: ${code}`,
-    inviteHint: "Отправьте друзьям ссылку или код. Они откроют Dubbo у себя и нажмут «Войти по коду».",
+    shareText: (code: string) => `Заходи озвучивать сцену в DubParty! Код комнаты: ${code}`,
+    inviteHint: "Отправьте друзьям ссылку или код. Они откроют DubParty у себя и нажмут «Войти по коду».",
     fileHint: "Сайт открыт как файл, поэтому ссылка не сработает: друзьям нужен код и тот же файл или опубликованный сайт.",
     players: "Игроки",
     host: "ведущий",
@@ -371,7 +371,7 @@ export const ru = {
     savePassword: "Сохранить пароль",
     backToSignIn: "Вернуться ко входу",
     mismatch: "Пароли не совпадают",
-    welcome: "Добро пожаловать в Dubbo!",
+    welcome: "Добро пожаловать в DubParty!",
     welcomeBack: "С возвращением!",
     passwordChanged: "Пароль изменён, вы вошли",
     signedOut: "Вы вышли из аккаунта",

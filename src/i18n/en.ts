@@ -2,7 +2,7 @@ import type { Dict } from "./ru";
 
 export const en: Dict = {
   meta: {
-    title: "Dubbo — dub movie scenes with friends",
+    title: "DubParty — online dubbing game with friends",
   },
   common: {
     loading: "Loading",
@@ -26,7 +26,7 @@ export const en: Dict = {
     onScreen: "On screen",
   },
   header: {
-    home: "Dubbo, home",
+    home: "DubParty, home",
     theme: "Toggle theme",
     settings: "Settings",
     language: "Language",
@@ -291,8 +291,8 @@ export const en: Dict = {
     copyCode: "Copy code",
     copied: "Copied",
     share: "Share",
-    shareText: (code: string) => `Come dub a scene with me in Dubbo! Room code: ${code}`,
-    inviteHint: "Send friends the link or the code. They open Dubbo and tap “Join with code”.",
+    shareText: (code: string) => `Come dub a scene with me in DubParty! Room code: ${code}`,
+    inviteHint: "Send friends the link or the code. They open DubParty and tap “Join with code”.",
     fileHint: "The site is opened as a file, so the link won't work: friends need the code and the same file or the published site.",
     players: "Players",
     host: "host",
@@ -371,7 +371,7 @@ export const en: Dict = {
     savePassword: "Save password",
     backToSignIn: "Back to sign in",
     mismatch: "Passwords don't match",
-    welcome: "Welcome to Dubbo!",
+    welcome: "Welcome to DubParty!",
     welcomeBack: "Welcome back!",
     passwordChanged: "Password changed, you're signed in",
     signedOut: "You've signed out",

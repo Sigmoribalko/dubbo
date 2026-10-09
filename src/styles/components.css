@@ -2,6 +2,10 @@
 .topbar { display: flex; align-items: center; gap: 10px; }
 .wordmark { font: 900 1.4rem var(--font-display); letter-spacing: -0.02em; background: none; border: 0; padding: 0; color: var(--ink); }
 .wordmark i { font-style: normal; color: var(--rec); }
+.wordmark { gap: 0; }
+.wordmark b { font-weight: 900; color: var(--accent); }
+:root[data-theme="light"] .wordmark b { color: var(--focus); }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .wordmark b { color: var(--focus); } }
 
 /* ---------- hero ---------- */
 .hero { padding: 28px 0 8px; }
@@ -289,7 +293,7 @@ button.link.on-color { color: #fff; font-weight: 700; margin-top: 4px; }
 
 .section-kicker { font: 700 0.8rem var(--font-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
 .home .steps { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
-.home .steps li { display: grid; gap: 4px; padding: 16px 16px 16px 60px; background: var(--panel); border: 1.5px solid var(--line); border-radius: var(--r-lg); }
+.home .steps li { display: grid; align-content: start; gap: 4px; padding: 16px 16px 16px 60px; background: var(--panel); border: 1.5px solid var(--line); border-radius: var(--r-lg); }
 .home .steps li::before { left: 16px; top: 16px; }
 
 /* =====================================================================
