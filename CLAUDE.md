@@ -11,6 +11,15 @@ Live: https://dubparty.ru (GitHub Pages, repo Sigmoribalko/dubparty). Owner talk
   HTTPS certificate was still pending on 2026-10-09; when `gh api repos/Sigmoribalko/dubparty/pages --jq .https_certificate.state`
   says approved, run `gh api -X PUT repos/Sigmoribalko/dubparty/pages -F https_enforced=true`.
 
+## Game flow (owner's spec)
+lobby (host picks/imports pack + scene, invites, everyone downloads) → host "Начать: выбор ролей" → casting (pick role,
+"Перевыбрать", "Перемешать роли"; public rooms deal at random) → host "Начать запись" when everyone has a role →
+recording line by line ("Реплика N из M": listen original, record, listen back, re-record, Далее / ← Назад, last = Сдать)
+→ waiting screen (who submitted, lines left for others) → everyone submitted → show autoplays → vote best voice
+(not yourself) → download video / host "К выбору сцены" / leave.
+- Line takes live in `game.lineTakes`; on submit `src/lib/audio/compose.ts` joins them into one WAV voice track, so
+  networking/mixing/export still handle one recording per role. Progress is sent as `{t:"lines", n}`.
+
 ## Code map
 - `src/net/room.ts` — online rooms over WebRTC (PeerJS public signalling). Host is authoritative; guests download the scene;
   public rooms advertise on `dubbo-v1-pub-<0..39>` (found by `src/net/finder.ts`); capacity = number of roles; random role dealing.

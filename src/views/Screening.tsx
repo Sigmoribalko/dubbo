@@ -46,7 +46,8 @@ export function Screening() {
 
   useEffect(() => {
     if (video.current) routeVideo(video.current);
-    show("dub", false);
+    // The show starts by itself once everyone has submitted.
+    show("dub");
     const offPlay = onPlayAll(() => show("dub"));
     return () => { offPlay(); mixer.current?.destroy(); mixer.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -93,19 +94,16 @@ export function Screening() {
       <Band lines={game.scene.lines} roles={game.scene.roles} duration={game.scene.duration} time={time} />
 
       <div className="row">
-        <button className="primary" onClick={() => show("dub")}>{t.screen.watch}</button>
+        <button onClick={() => show("dub")}>{t.screen.watch}</button>
         {isHost && <button onClick={hostPlayAll}>{t.online.showAll}</button>}
         {hasOriginal && <button onClick={() => show("original")}>{t.screen.original}</button>}
-        <button onClick={save}>{t.screen.saveVideo}</button>
-        <div className="spacer" />
-        {isHost ? <button onClick={hostToLobby}>{t.online.nextScene}</button> : <button className="ghost danger" onClick={leave}>{t.online.leave}</button>}
       </div>
 
       <section className="stack" aria-labelledby="best-h">
         <div className="row">
           <div style={{ flex: 1 }}>
             <h3 id="best-h">{t.screen.bestVoice}</h3>
-            <p className="muted fine">{t.screen.bestVoiceHint}</p>
+            <p className="muted fine">{t.screen.afterShowHint}</p>
           </div>
           {isHost ? <button className="primary" onClick={hostReveal}>{t.online.reveal}</button> : <span className="muted fine">{t.online.waitReveal}</span>}
         </div>
@@ -122,8 +120,7 @@ export function Screening() {
                 {effect !== "none" && <span className="muted fine">{t.effects[effect][0]}</span>}
               </div>
               <div className="row">
-                {mine && <button className="small" onClick={() => go({ name: "record" })}>{recorded ? t.screen.rerecord : t.screen.record}</button>}
-                {!recorded && !mine && <span className="muted fine">{t.online.recording}</span>}
+                {!recorded && <span className="muted fine">{t.online.recording}</span>}
                 <div className="spacer" />
                 <span className="muted fine">{t.online.votes(counts[role.id] ?? 0)}</span>
                 {mine ? (
@@ -138,6 +135,13 @@ export function Screening() {
           );
         })}
       </section>
+
+      <div className="row">
+        <button className="primary" onClick={save}>{t.screen.saveVideo}</button>
+        {isHost && <button onClick={hostToLobby}>{t.online.toScenes}</button>}
+        <div className="spacer" />
+        <button className="ghost danger" onClick={leave}>{t.online.leave}</button>
+      </div>
 
       {exporting && (
         <ExportModal

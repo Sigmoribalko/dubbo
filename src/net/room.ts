@@ -14,7 +14,8 @@ import { Link, type FileMeta, type Json } from "./link";
  * Signalling goes through the public PeerJS server; media flows peer-to-peer over WebRTC.
  */
 
-export type Phase = "lobby" | "recording" | "screening";
+/** lobby: pick a scene and download it · casting: pick roles · recording: line by line · screening: the show and the vote. */
+export type Phase = "lobby" | "casting" | "recording" | "screening";
 
 export interface Player {
   id: string;
@@ -27,6 +28,8 @@ export interface Player {
   progress: number | null;
   /** Sent a recording this round. */
   submitted: boolean;
+  /** Lines recorded so far this round (shown to others while they wait). */
+  linesDone: number;
   online: boolean;
 }
 
@@ -141,7 +144,7 @@ export function createRoom(name: string, opts: { public?: boolean } = {}, attemp
       myId: id,
       snap: {
         code, phase: "lobby", round: 0, pack: null, scene: null, votes: {}, winners: null, public: false,
-        players: [{ id, name, host: true, roleId: null, ready: true, progress: null, submitted: false, online: true }],
+        players: [{ id, name, host: true, roleId: null, ready: true, progress: null, submitted: false, linesDone: 0, online: true }],
       },
     });
   });
@@ -161,9 +164,9 @@ function hostAccept(conn: DataConnection) {
     if (!guests.has(link.peer)) return; // a rejected visitor
     guests.delete(link.peer);
     hostUpdate((s) => {
-      if (s.phase === "lobby") {
+      if (s.phase === "lobby" || s.phase === "casting") {
         s.players = s.players.filter((p) => p.id !== link.peer);
-        if (s.public) dealRoles(s);
+        if (s.public && s.phase === "casting") dealRoles(s);
       } else s.players.forEach((p) => { if (p.id === link.peer) p.online = false; });
     });
   };
@@ -184,8 +187,8 @@ function hostHandle(link: Link, msg: Json) {
       hostUpdate((s) => {
         const existing = s.players.find((p) => p.id === id);
         if (existing) { existing.name = name; existing.online = true; }
-        else s.players.push({ id, name, host: false, roleId: null, ready: !s.scene, progress: null, submitted: false, online: true });
-        if (s.public && s.phase === "lobby") dealRoles(s);
+        else s.players.push({ id, name, host: false, roleId: null, ready: !s.scene, progress: null, submitted: false, linesDone: 0, online: true });
+        if (s.public && s.phase === "casting") dealRoles(s);
       });
       const snap = useRoom.getState().snap;
       if (snap?.scene) sendSceneOffer(link, snap);
@@ -232,7 +235,7 @@ function dealRoles(s: Snapshot) {
 
 function hostHandleFile(link: Link, meta: FileMeta, blob: Blob) {
   const snap = useRoom.getState().snap;
-  if (meta.kind !== "take" || !snap || snap.phase === "lobby" || meta.round !== snap.round || guests.get(link.peer) !== link) return;
+  if (meta.kind !== "take" || !snap || (snap.phase !== "recording" && snap.phase !== "screening") || meta.round !== snap.round || guests.get(link.peer) !== link) return;
   // A player can only send the part they were cast in, not overwrite someone else's.
   const roleId = String(meta.roleId);
   if (snap.players.find((p) => p.id === link.peer)?.roleId !== roleId) return;
@@ -280,7 +283,7 @@ function applyAction(playerId: string, msg: Json) {
   switch (msg.t) {
     case "pick":
       hostUpdate((s) => {
-        if (s.phase !== "lobby" || s.public) return; // public rooms deal roles at random
+        if (s.phase !== "casting" || s.public) return; // public rooms deal roles at random
         const roleId = msg.roleId ? String(msg.roleId) : null;
         if (roleId && !isRole(s, roleId)) return;
         if (roleId && s.players.some((p) => p.roleId === roleId && p.id !== playerId)) return; // taken
@@ -290,13 +293,13 @@ function applyAction(playerId: string, msg: Json) {
       break;
     case "random":
       hostUpdate((s) => {
-        if (s.phase !== "lobby") return;
+        if (s.phase !== "casting") return;
         if (s.public && !s.players.find((p) => p.id === playerId)?.host) return;
         dealRoles(s);
       });
       break;
     case "reset":
-      hostUpdate((s) => { if (s.phase === "lobby" && !s.public) s.players.forEach((p) => { p.roleId = null; }); });
+      hostUpdate((s) => { if (s.phase === "casting" && !s.public) s.players.forEach((p) => { p.roleId = null; }); });
       break;
     case "vote":
       hostUpdate((s) => {
@@ -306,6 +309,14 @@ function applyAction(playerId: string, msg: Json) {
         if (s.votes[playerId] === roleId) delete s.votes[playerId];
         else s.votes[playerId] = roleId;
       });
+      break;
+    case "lines":
+      hostUpdate((s) => {
+        const p = s.players.find((x) => x.id === playerId);
+        if (s.phase !== "recording" || !p?.roleId) return;
+        const total = s.scene?.lines.filter((l) => l.roleId === p.roleId).length ?? 0;
+        p.linesDone = Math.max(0, Math.min(total, Math.floor(Number(msg.n) || 0)));
+      }, true);
       break;
     case "effect": {
       // Only the voice's owner picks its effect.
@@ -334,7 +345,7 @@ function shuffle<T>(a: T[]): T[] {
 export async function hostSelectScene(pack: Pack, sceneId: string) {
   const scene = pack.scenes.find((s) => s.id === sceneId);
   const cur = useRoom.getState().snap;
-  if (!scene || !cur || scene.roles.length < onlinePlayers(cur).length) return;
+  if (!scene || !cur || cur.phase !== "lobby" || scene.roles.length < onlinePlayers(cur).length) return;
   const prevRoles = useRoom.getState().snap?.scene?.roles.map((r) => r.id).join() ?? "";
   hostUpdate((s) => {
     s.pack = { id: pack.id, name: pack.name, author: pack.author };
@@ -343,7 +354,6 @@ export async function hostSelectScene(pack: Pack, sceneId: string) {
       if (!p.host) { p.ready = false; p.progress = 0; }
       if (prevRoles !== scene.roles.map((r) => r.id).join()) p.roleId = null;
     });
-    if (s.public) dealRoles(s);
   });
   const snap = useRoom.getState().snap!;
   guests.forEach((g) => sendSceneOffer(g, snap));
@@ -409,13 +419,25 @@ export function hostSetPublic(on: boolean) {
   wantPublic = on;
   hostUpdate((s) => {
     s.public = on;
-    if (on && s.phase === "lobby") dealRoles(s);
+    if (on && s.phase === "casting") dealRoles(s);
   });
   if (on) startBeacon();
   else stopBeacon();
 }
 
+/** Everyone has the scene: move on to picking roles. */
+export function hostCast() {
+  hostUpdate((s) => {
+    if (s.phase !== "lobby" || !s.scene || !onlinePlayers(s).every((p) => p.ready)) return;
+    s.phase = "casting";
+    if (s.public) dealRoles(s);
+  });
+}
+
+/** Every player has a role: recording starts on all devices. */
 export function hostStart() {
+  const cur = useRoom.getState().snap;
+  if (!cur || cur.phase !== "casting" || !everyoneCast(cur)) return;
   roundTakes.clear();
   bumpTakes();
   hostUpdate((s) => {
@@ -423,12 +445,19 @@ export function hostStart() {
     s.round++;
     s.votes = {};
     s.winners = null;
-    s.players.forEach((p) => { p.submitted = false; });
+    s.players.forEach((p) => { p.submitted = false; p.linesDone = 0; });
   });
 }
 
+export const everyoneCast = (s: Snapshot) => onlinePlayers(s).length > 0 && onlinePlayers(s).every((p) => p.roleId);
+
 export const hostToScreening = () => hostUpdate((s) => { s.phase = "screening"; });
-export const hostToLobby = () => hostUpdate((s) => { s.phase = "lobby"; s.votes = {}; s.winners = null; });
+export const hostToLobby = () => hostUpdate((s) => {
+  s.phase = "lobby";
+  s.votes = {};
+  s.winners = null;
+  s.players = s.players.filter((p) => p.online);
+});
 
 export function hostReveal() {
   hostUpdate((s) => {
@@ -581,6 +610,8 @@ export const pickRole = (roleId: string | null) => request({ t: "pick", roleId }
 export const randomizeRoles = () => request({ t: "random" });
 export const resetRoles = () => request({ t: "reset" });
 export const vote = (roleId: string) => request({ t: "vote", roleId });
+/** How many of my lines are recorded, so others see how far along I am. */
+export const reportLines = (n: number) => request({ t: "lines", n });
 
 export function submitTake(take: RoundTake) {
   const s = useRoom.getState();

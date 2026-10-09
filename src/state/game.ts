@@ -19,6 +19,8 @@ export interface Game {
   cast: Record<string, string>;
   /** roleId → recording. */
   tracks: Record<string, RecordedTrack>;
+  /** lineId → this device's take of one of its lines, before they're joined and sent. */
+  lineTakes: Record<string, RecordedTrack>;
   /** roleId → voice effect. Non-destructive: applied at playback and export. */
   effects: Record<string, EffectId>;
   /** The role this device records, or null for a spectator. */
@@ -49,7 +51,7 @@ export async function createGame(opts: {
     if (buf) clips[key] = buf;
   }
   const bg = await decode(scene.bg);
-  return { game: { ...opts, videoUrl, bg, clips, tracks: {}, effects: {} }, warnings };
+  return { game: { ...opts, videoUrl, bg, clips, tracks: {}, lineTakes: {}, effects: {} }, warnings };
 }
 
 /** Roles somebody is voicing, in scene order. */
@@ -85,7 +87,10 @@ export function originalMix(g: Game): MixTrack[] {
   return out;
 }
 
-export const hasAnyRecording = (g: Game | null) => !!g && Object.keys(g.tracks).length > 0;
+export const hasAnyRecording = (g: Game | null) => !!g && (Object.keys(g.tracks).length > 0 || Object.keys(g.lineTakes).length > 0);
+
+/** This device's lines in the order they're recorded. */
+export const myLines = (g: Game) => (g.myRoleId ? g.scene.lines.filter((l) => l.roleId === g.myRoleId).sort((a, b) => a.start - b.start) : []);
 
 const WHOLE: DuckRanges = [[0, Number.MAX_SAFE_INTEGER]];
 
