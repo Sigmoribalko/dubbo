@@ -13,7 +13,8 @@ function initialLang(): Lang {
     const saved = localStorage.getItem(KEY);
     if (saved === "ru" || saved === "en") return saved;
   } catch { /* storage unavailable */ }
-  return /^(ru|uk|be|kk)\b/i.test(navigator.language) ? "ru" : "en";
+  // Russian by default; English only when the visitor picks it in settings.
+  return "ru";
 }
 
 export const useLang = create<{ lang: Lang; setLang(l: Lang): void }>((set) => ({
