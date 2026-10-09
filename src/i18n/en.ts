@@ -66,8 +66,10 @@ export const en: Dict = {
     noPacks: "No packs yet. Create your own or import an archive or a pack folder.",
     packMeta: (scenes: number, author?: string) => `${scenes} ${scenes === 1 ? "scene" : "scenes"}${author ? `, by ${author}` : ""}`,
     confirmDelete: (name: string) => `Delete the pack “${name}” and its videos?`,
-    demoLabel: "Example line strip",
+    demoLabel: "Example dubbing cue sheet",
     demo: {
+      scene: "Scene 7 · “Who’s in charge”",
+      take: "Take 3",
       roles: ["Captain", "Robot", "Cat"],
       lines: ["Who's in charge here?", "Beep. Definitely not you.", "Meow.", "Cat, are you against me too?", "I'm for dinner.", "I vote for the cat."],
     },

@@ -414,6 +414,53 @@ button.icon-only { width: 36px; height: 36px; padding: 0; }
 
 @media (pointer: coarse) { .desktop-only { display: none; } }
 
-/* Home demo: the same caption + voice track as the record screen. */
-.demo { gap: 10px; }
-.demo .caption { min-height: 2.6em; }
+
+/* =====================================================================
+   Home demo: a dubbing cue sheet that reads itself
+   ===================================================================== */
+.script {
+  --paper: #f3efe4;
+  --paper-ink: #1d1c19;
+  --paper-muted: #8d887b;
+  --paper-rule: #e2dccd;
+  margin: 0; padding: 22px 26px 26px; border-radius: 6px;
+  background: var(--paper); color: var(--paper-ink);
+  font-family: "PT Mono", ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 1.02rem;
+  box-shadow: 0 1px 0 rgb(0 0 0 / 0.04), 0 18px 40px -18px rgb(0 0 0 / 0.45);
+  /* a hole-punched margin, like a printed script */
+  background-image: radial-gradient(circle at 12px 50%, var(--bg) 5px, transparent 5.5px);
+  background-size: 24px 74px; background-repeat: repeat-y; background-position: left 14px;
+}
+.script-head {
+  display: flex; flex-wrap: wrap; gap: 6px 22px; align-items: baseline;
+  padding: 0 0 12px 18px; margin-bottom: 6px; border-bottom: 1.5px solid var(--paper-ink);
+  font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.script-rec { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; color: #c8371f; font-variant-numeric: tabular-nums; }
+.script-rec i { width: 9px; height: 9px; border-radius: 50%; background: #c8371f; animation: blink 1s infinite; }
+.script-lines { list-style: none; margin: 0; padding: 0 0 0 18px; }
+.script-lines li {
+  display: grid; grid-template-columns: 9.5ch 9ch 1fr; gap: 4px 16px; align-items: baseline;
+  padding: 9px 0; border-bottom: 1px dashed var(--paper-rule);
+  transition: opacity 0.3s;
+}
+.script-lines li:last-child { border-bottom: 0; }
+.script-tc { color: var(--paper-muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.script-who { font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; font-size: 0.82rem; }
+.script-say { color: var(--paper-muted); }
+.script-say mark { background: none; color: var(--paper-ink); }
+.script-lines li.next { opacity: 0.55; }
+.script-lines li.done .script-say { color: var(--paper-ink); }
+.script-lines li.now .script-who { color: #c8371f; }
+.script-lines li.now .script-say mark {
+  /* highlighter stroke growing under the words being said */
+  background: linear-gradient(transparent 55%, rgb(198 241 53 / 0.85) 55%, rgb(198 241 53 / 0.85) 92%, transparent 92%);
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+}
+@media (max-width: 720px) {
+  .script { padding: 16px 16px 18px 20px; font-size: 0.9rem; }
+  .script-lines li { grid-template-columns: auto 1fr; gap: 2px 12px; padding: 7px 0; }
+  .script-say { grid-column: 1 / -1; }
+  .script-rec { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .script-rec i { animation: none; } }
