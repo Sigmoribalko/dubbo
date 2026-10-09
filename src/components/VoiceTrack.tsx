@@ -67,9 +67,9 @@ export function VoiceTrack({ reference, mine, live, lines, color, time, labels }
     ctx.fillRect(0, mid - 0.5, w, 1);
 
     /** Envelope as a smooth shape mirrored around the centre line. */
-    const shape = (values: Float32Array) => {
+    const shape = (values: Float32Array, until = last + 1) => {
       const top: Array<[number, number]> = [];
-      for (let i = first; i <= last + 1 && i < values.length; i++) top.push([x((i + 0.5) / ENV_RATE), loudness(values[i]) * amp]);
+      for (let i = first; i <= until && i < values.length; i++) top.push([x((i + 0.5) / ENV_RATE), loudness(values[i]) * amp]);
       ctx.beginPath();
       top.forEach(([px, a], k) => (k ? ctx.lineTo(px, mid - a) : ctx.moveTo(px, mid - a)));
       for (let k = top.length - 1; k >= 0; k--) ctx.lineTo(top[k][0], mid + top[k][1]);
@@ -85,7 +85,8 @@ export function VoiceTrack({ reference, mine, live, lines, color, time, labels }
     // You: an outline on top, so where you're louder or quieter is obvious.
     const yours = live.current ?? mine?.values;
     if (yours) {
-      shape(yours);
+      // While recording, nothing exists ahead of the playhead yet.
+      shape(yours, live.current ? Math.floor(t * ENV_RATE) : last + 1);
       ctx.fillStyle = hexAlpha(colors.current.you, 0.18);
       ctx.fill();
       ctx.strokeStyle = colors.current.you;

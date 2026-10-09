@@ -409,3 +409,7 @@ button.icon-only { width: 36px; height: 36px; padding: 0; }
 }
 
 @media (pointer: coarse) { .desktop-only { display: none; } }
+
+/* Home demo: the same caption + voice track as the record screen. */
+.demo { gap: 10px; }
+.demo .caption { min-height: 2.6em; }
