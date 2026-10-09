@@ -334,6 +334,7 @@ function Casting({ snap }: { snap: Snapshot }) {
           )}
         </div>
         {missing > 0 && <p className="muted fine">{t.online.needPlayers(missing)}</p>}
+        {snap.players.some((p) => !p.online) && <p className="muted fine">{t.online.dropped(snap.players.filter((p) => !p.online).map((p) => p.name).join(", "))}</p>}
       </section>
 
       <section className="panel stack" aria-labelledby="players-h">
@@ -456,6 +457,7 @@ export function RecordingWait({ snap }: { snap: Snapshot }) {
   const mine = snap.players.find((p) => p.id === myId);
   const linesOf = (p: Player) => snap.scene?.lines.filter((l) => l.roleId === p.roleId).length ?? 0;
   // Who has submitted first, then who is closest to finishing.
+  const dropped = cast.filter((p) => !p.online && !p.submitted);
   const order = [...cast].sort((a, b) => Number(b.submitted) - Number(a.submitted) || (linesOf(a) - a.linesDone) - (linesOf(b) - b.linesDone));
   return (
     <div className="wrap stack">
@@ -479,10 +481,13 @@ export function RecordingWait({ snap }: { snap: Snapshot }) {
           })}
         </ul>
       </section>
+      {dropped.length > 0 && (
+        <p className="notice panel">{t.online.dropped(dropped.map((p) => p.name).join(", "))}{isHost ? " " + t.online.droppedHost : ""}</p>
+      )}
       <div className="row">
         <button className="ghost danger" onClick={leave}>{t.online.leave}</button>
         <div className="spacer" />
-        {isHost && done > 0 && <button onClick={hostToScreening}>{t.online.watchNow}</button>}
+        {isHost && done > 0 && <button className={dropped.length ? "primary" : ""} onClick={hostToScreening}>{t.online.watchNow}</button>}
       </div>
     </div>
   );

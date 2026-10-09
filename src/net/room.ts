@@ -57,6 +57,8 @@ export interface RoundTake {
 
 interface RoomState {
   status: "idle" | "connecting" | "open" | "error";
+  /** Lost the link to the host; trying to get back without leaving the screen. */
+  reconnecting: boolean;
   error: string | null;
   isHost: boolean;
   myId: string;
@@ -65,7 +67,7 @@ interface RoomState {
   takesRev: number;
 }
 
-export const useRoom = create<RoomState>(() => ({ status: "idle", error: null, isHost: false, myId: "", snap: null, takesRev: 0 }));
+export const useRoom = create<RoomState>(() => ({ status: "idle", reconnecting: false, error: null, isHost: false, myId: "", snap: null, takesRev: 0 }));
 const setRoom = (patch: Partial<RoomState>) => useRoom.setState(patch);
 
 /* ---------- shared module state ---------- */
@@ -73,6 +75,60 @@ const setRoom = (patch: Partial<RoomState>) => useRoom.setState(patch);
 let peer: Peer | null = null;
 const guests = new Map<string, Link>(); // host side
 let hostLink: Link | null = null; // guest side
+/** Host side: a player's secret key → their current peer id, so someone who drops can take their seat back. */
+let keys = new Map<string, string>();
+
+/* ---------- surviving a closed tab ---------- */
+
+const KEY_STORE = "dubl-player-key";
+const HOSTED_STORE = "dubl-hosted";
+const LAST_STORE = "dubl-last-room";
+const HOST_TAKE = "__host-take";
+/** How long a dropped room can be returned to. */
+const RESUME_MS = 20 * 60 * 1000;
+
+let memoryKey = "";
+/** A random secret per browser, sent only to the host. Proves "it's me again" after a reload. */
+function playerKey(): string {
+  const make = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+  try {
+    let k = localStorage.getItem(KEY_STORE);
+    if (!k) { k = make(); localStorage.setItem(KEY_STORE, k); }
+    return k;
+  } catch {
+    return (memoryKey ||= make());
+  }
+}
+
+const readJson = <T,>(key: string): T | null => { try { return JSON.parse(localStorage.getItem(key) ?? "null") as T | null; } catch { return null; } };
+const writeJson = (key: string, v: unknown) => { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* private mode / full */ } };
+const forget = (key: string) => { try { localStorage.removeItem(key); } catch { /* private mode */ } };
+
+interface Hosted { v: 1; savedAt: number; snap: Snapshot; keys: Array<[string, string]>; wantPublic: boolean; ownTake?: { roleId: string; offset: number; effect: EffectId; round: number } }
+interface LastRoom { code: string; host: boolean; at: number; name: string; scene?: string }
+
+function saveHosted() {
+  const st = useRoom.getState();
+  if (!st.isHost || !st.snap || st.status !== "open") return;
+  const prev = readJson<Hosted>(HOSTED_STORE);
+  writeJson(HOSTED_STORE, { v: 1, savedAt: Date.now(), snap: st.snap, keys: [...keys], wantPublic, ownTake: prev?.snap.code === st.snap.code ? prev.ownTake : undefined } satisfies Hosted);
+  rememberRoom(true);
+}
+function rememberRoom(host: boolean) {
+  const st = useRoom.getState();
+  const me = st.snap?.players.find((p) => p.id === st.myId);
+  if (st.snap) writeJson(LAST_STORE, { code: st.snap.code, host, at: Date.now(), name: me?.name ?? "", scene: st.snap.scene?.title } satisfies LastRoom);
+}
+window.addEventListener("pagehide", () => { saveHosted(); if (useRoom.getState().status === "open" && !useRoom.getState().isHost) rememberRoom(false); });
+
+/** The room this browser was in recently and can go back to (after a closed tab or a crash). */
+export function lastRoom(): LastRoom | null {
+  const r = readJson<LastRoom>(LAST_STORE);
+  if (!r || typeof r.code !== "string" || Date.now() - r.at > RESUME_MS) return null;
+  if (r.host && !readJson<Hosted>(HOSTED_STORE)) return null;
+  return r;
+}
+export const forgetLastRoom = () => { forget(LAST_STORE); forget(HOSTED_STORE); };
 /** Recordings of the current round, by role. Kept on every device. */
 export const roundTakes = new Map<string, RoundTake>();
 const playListeners = new Set<() => void>();
@@ -121,6 +177,7 @@ function hostUpdate(fn: (s: Snapshot) => void, throttle = false) {
   const next = structuredClone(cur);
   fn(next);
   setRoom({ snap: next });
+  saveHosted();
   const send = () => { broadcastTimer = 0; const snap = useRoom.getState().snap; guests.forEach((g) => g.send({ t: "state", snap })); };
   if (!throttle) { clearTimeout(broadcastTimer); send(); }
   else if (!broadcastTimer) broadcastTimer = window.setTimeout(send, 250);
@@ -157,6 +214,50 @@ export function createRoom(name: string, opts: { public?: boolean } = {}, attemp
   p.on("disconnected", () => { try { p.reconnect(); } catch { /* destroyed */ } });
 }
 
+/**
+ * The host closed the tab or crashed: reopen the same room from what was saved. Guests are
+ * retrying in the background and take their seats back; whoever already sent a recording sends it again.
+ */
+export function resumeRoom(attempt = 0) {
+  const saved = readJson<Hosted>(HOSTED_STORE);
+  if (!saved || saved.v !== 1 || Date.now() - saved.savedAt > RESUME_MS) { forgetLastRoom(); return; }
+  if (attempt === 0) {
+    stopBeacon();
+    try { peer?.destroy(); } catch { /* gone */ }
+    setRoom({ status: "connecting", reconnecting: false, error: null, isHost: true, snap: null });
+  }
+  const code = saved.snap.code;
+  const p = new Peer(PEER_PREFIX + code.toLowerCase(), PEER_OPTIONS);
+  peer = p;
+  p.on("open", async (id) => {
+    keys = new Map(saved.keys);
+    wantPublic = saved.wantPublic;
+    const snap = structuredClone(saved.snap);
+    roundTakes.clear();
+    const own = saved.ownTake;
+    const blob = own && own.round === snap.round ? await store.getMedia(HOST_TAKE) : null;
+    if (own && blob) roundTakes.set(own.roleId, { roleId: own.roleId, blob, offset: own.offset, effect: own.effect });
+    snap.players.forEach((pl) => {
+      if (pl.host) {
+        pl.online = true;
+        // The host's unsent lines were in the closed tab.
+        if (!blob && snap.phase === "recording") { pl.submitted = false; pl.linesDone = 0; }
+      } else pl.online = false;
+    });
+    if (snap.phase === "lobby" || snap.phase === "casting") snap.players = snap.players.filter((pl) => pl.host);
+    setRoom({ status: "open", myId: id, snap });
+    bumpTakes();
+    if (snap.public) startBeacon();
+  });
+  p.on("connection", (conn) => hostAccept(conn));
+  p.on("error", (e) => {
+    // The server frees the room's id a moment after the old tab is gone.
+    if (e.type === "unavailable-id" && attempt < 20) { try { p.destroy(); } catch { /* gone */ } setTimeout(() => { if (peer === p) resumeRoom(attempt + 1); }, 3000); return; }
+    if (useRoom.getState().status !== "open") setRoom({ status: "error", error: t().online.errNetwork });
+  });
+  p.on("disconnected", () => { try { p.reconnect(); } catch { /* destroyed */ } });
+}
+
 function hostAccept(conn: DataConnection) {
   const link = new Link(conn);
   link.onMessage = (msg) => hostHandle(link, msg);
@@ -164,11 +265,14 @@ function hostAccept(conn: DataConnection) {
   link.onClose = () => {
     if (!guests.has(link.peer)) return; // a rejected visitor
     guests.delete(link.peer);
-    hostUpdate((s) => {
-      if (s.phase === "lobby" || s.phase === "casting") {
-        s.players = s.players.filter((p) => p.id !== link.peer);
-      } else s.players.forEach((p) => { if (p.id === link.peer) p.online = false; });
-    });
+    // A closed tab and a bad connection look the same: keep the seat (and role) for a while.
+    hostUpdate((s) => { s.players.forEach((p) => { if (p.id === link.peer) p.online = false; }); });
+    const id = link.peer;
+    setTimeout(() => {
+      const cur = useRoom.getState().snap;
+      if (!cur || !(cur.phase === "lobby" || cur.phase === "casting")) return;
+      if (cur.players.some((p) => p.id === id && !p.online)) hostUpdate((s) => { s.players = s.players.filter((p) => p.id !== id); });
+    }, SEAT_HOLD_MS);
   };
 }
 
@@ -177,14 +281,28 @@ function hostHandle(link: Link, msg: Json) {
   switch (msg.t) {
     case "hello": {
       const cur = useRoom.getState().snap!;
-      if (!cur.players.some((p) => p.id === id)) {
+      const key = typeof msg.key === "string" ? msg.key.slice(0, 64) : "";
+      const prevId = key ? keys.get(key) : undefined;
+      // Same browser back after a closed tab or a crash: give them their seat (and role) back.
+      const back = prevId && prevId !== id ? cur.players.find((p) => p.id === prevId && !p.online) : undefined;
+      if (!back && !cur.players.some((p) => p.id === id)) {
         // No more players than roles; strangers can't drop into a game already under way.
-        if (onlinePlayers(cur).length >= capacityOf(cur)) return reject(link, "full");
+        // Before the game, seats held for dropped players count too.
+        const taken = cur.phase === "lobby" || cur.phase === "casting" ? cur.players.length : onlinePlayers(cur).length;
+        if (taken >= capacityOf(cur)) return reject(link, "full");
         if (cur.public && cur.phase !== "lobby" && cur.phase !== "casting") return reject(link, "started");
       }
       guests.set(id, link);
+      if (back) { const stale = guests.get(back.id); guests.delete(back.id); stale?.close(); }
+      // Never let a second tab of the same browser steal a seat that's still in use.
+      if (key && (back || !prevId || !cur.players.some((p) => p.id === prevId && p.online))) keys.set(key, id);
       const name = String(msg.name || "").slice(0, 30) || t().online.guest;
       hostUpdate((s) => {
+        if (back) {
+          const p = s.players.find((x) => x.id === back.id);
+          if (p) p.id = id;
+          if (s.votes[back.id] !== undefined) { s.votes[id] = s.votes[back.id]; delete s.votes[back.id]; }
+        }
         const existing = s.players.find((p) => p.id === id);
         if (existing) { existing.name = name; existing.online = true; }
         else s.players.push({ id, name, host: false, roleId: null, ready: !s.scene, progress: null, submitted: false, linesDone: 0, online: true });
@@ -256,6 +374,11 @@ function hostHandleFile(link: Link, meta: FileMeta, blob: Blob) {
 
 function hostAcceptTake(playerId: string, take: RoundTake) {
   const snap = useRoom.getState().snap!;
+  if (playerId === useRoom.getState().myId) {
+    store.putMedia(HOST_TAKE, take.blob);
+    const h = readJson<Hosted>(HOSTED_STORE);
+    if (h) writeJson(HOSTED_STORE, { ...h, ownTake: { roleId: take.roleId, offset: take.offset, effect: take.effect, round: snap.round } });
+  }
   roundTakes.set(take.roleId, take);
   bumpTakes();
   guests.forEach((g) => { if (g.peer !== playerId) sendTake(g, take, snap.round); });
@@ -263,7 +386,9 @@ function hostAcceptTake(playerId: string, take: RoundTake) {
     const p = s.players.find((x) => x.id === playerId);
     if (p) p.submitted = true;
     // Everyone with a role has sent their part → go watch.
-    const cast = s.players.filter((x) => x.roleId && x.online);
+    // Everyone cast has sent their part → go watch. A player who dropped without sending holds the
+    // show (they may come back); the host can start it anyway.
+    const cast = s.players.filter((x) => x.roleId);
     if (s.phase === "recording" && cast.length && cast.every((x) => x.submitted)) s.phase = "screening";
   });
 }
@@ -502,22 +627,54 @@ interface Download { sceneId: string; pack: Snapshot["pack"]; scene: Scene; wait
 let download: Download | null = null;
 let lastProgressSent = 0;
 
+/** Before a game starts, a dropped player's seat is kept this long, then freed for someone else. */
+const SEAT_HOLD_MS = 60_000;
+/** How long a guest keeps trying to get back to a host that vanished (network blip, host reloading). */
+const RECONNECT_MS = 90_000;
+/** A connection that hasn't opened by now is retried (the signalling server sometimes drops the first try). */
+const OPEN_TIMEOUT = 8000;
+
 export function joinRoom(code: string, name: string) {
   leaveRoom();
   code = normalizeCode(code);
   setRoom({ status: "connecting", error: null, isHost: false });
   const p = new Peer(PEER_OPTIONS);
   peer = p;
+  const key = playerKey();
   const timeout = setTimeout(() => {
     if (useRoom.getState().status === "connecting") { setRoom({ status: "error", error: t().online.errNotFound }); peer?.destroy(); }
   }, 35000);
   let attempts = 0;
-  const connect = () => {
-    hostLink?.close();
+  let giveUpAt = 0;
+  let retryTimer = 0;
+  const alive = () => peer === p && !p.destroyed;
+  const retryLater = () => {
+    clearTimeout(retryTimer);
+    if (!alive()) return;
+    const st = useRoom.getState();
+    if (st.reconnecting && Date.now() > giveUpAt) {
+      setRoom({ status: "error", reconnecting: false, error: t().online.errHostLeft, snap: null });
+      return;
+    }
+    retryTimer = window.setTimeout(connect, st.reconnecting ? 3000 : 2000);
+  };
+  const lostHost = () => {
+    if (!alive()) return;
+    const st = useRoom.getState();
+    if (st.status === "open" && !st.reconnecting) { setRoom({ reconnecting: true }); giveUpAt = Date.now() + RECONNECT_MS; }
+    if (useRoom.getState().reconnecting || st.status === "connecting") retryLater();
+  };
+  function connect() {
+    if (!alive()) return;
+    if (p.disconnected) { try { p.reconnect(); } catch { /* destroyed */ } }
+    const old = hostLink;
+    hostLink = null;
+    old?.close();
     const conn = p.connect(PEER_PREFIX + code.toLowerCase(), { serialization: "raw", reliable: true });
     const link = new Link(conn);
     hostLink = link;
-    conn.on("open", () => link.send({ t: "hello", name }));
+    const openTimer = setTimeout(() => { if (hostLink === link && !conn.open) lostHost(); }, OPEN_TIMEOUT);
+    conn.on("open", () => { clearTimeout(openTimer); link.send({ t: "hello", name, key }); });
     link.onMessage = (msg) => { clearTimeout(timeout); guestHandle(msg); };
     link.onFile = (meta, blob) => guestHandleFile(meta, blob);
     link.onFileProgress = (meta, received) => {
@@ -526,17 +683,17 @@ export function joinRoom(code: string, name: string) {
       const p01 = Math.min(1, (download.done + received) / total);
       if (performance.now() - lastProgressSent > 300) { lastProgressSent = performance.now(); link.send({ t: "progress", p: p01 }); }
     };
-    link.onClose = () => {
-      if (hostLink === link && useRoom.getState().status === "open") setRoom({ status: "error", error: t().online.errHostLeft, snap: null });
-    };
-  };
+    link.onClose = () => { clearTimeout(openTimer); if (hostLink === link) lostHost(); };
+  }
   p.on("open", (id) => { setRoom({ myId: id }); connect(); });
+  p.on("disconnected", () => { try { p.reconnect(); } catch { /* destroyed */ } });
   p.on("error", (e) => {
-    // The signalling server sometimes needs a moment to see a fresh room: retry before giving up.
-    if (e.type === "peer-unavailable" && attempts++ < 14 && useRoom.getState().status === "connecting") {
-      setTimeout(connect, 2000);
+    // The host isn't reachable (yet): a fresh room the server hasn't seen, or a host that's reloading.
+    if (e.type === "peer-unavailable" && (useRoom.getState().reconnecting || (attempts++ < 14 && useRoom.getState().status === "connecting"))) {
+      retryLater();
       return;
     }
+    if (useRoom.getState().reconnecting) { retryLater(); return; }
     clearTimeout(timeout);
     setRoom({ status: "error", error: e.type === "peer-unavailable" ? t().online.errNotFound : t().online.errNetwork });
   });
@@ -547,11 +704,24 @@ function guestHandle(msg: Json) {
     case "state": {
       const snap = cleanSnapshot(msg.snap);
       if (!snap) break;
-      const prev = useRoom.getState().snap;
+      const st = useRoom.getState();
+      const prev = st.snap;
       if (prev && snap.round !== prev.round) { roundTakes.clear(); bumpTakes(); }
-      setRoom({ status: "open", snap });
+      setRoom({ status: "open", reconnecting: false, snap });
+      rememberRoom(false);
+      // Back after a drop: the host may have restarted and lost my recording, so send it again.
+      if (st.reconnecting && (snap.phase === "recording" || snap.phase === "screening")) {
+        const me = snap.players.find((p) => p.id === st.myId);
+        const mine = me?.roleId ? roundTakes.get(me.roleId) : undefined;
+        if (mine) hostLink?.sendFile({ kind: "take", round: snap.round, roleId: mine.roleId, offset: mine.offset, effect: mine.effect }, mine.blob);
+      }
       break;
     }
+    case "bye":
+      // The host closed the room on purpose: no point waiting.
+      setRoom({ status: "error", reconnecting: false, error: t().online.errHostLeft, snap: null });
+      forget(LAST_STORE);
+      break;
     case "scene":
       if (!isScene(msg.scene) || !Array.isArray(msg.files)) break;
       guestOffer(msg.pack as Snapshot["pack"], msg.scene, msg.files as Array<{ key: string; size: number }>);
@@ -675,7 +845,11 @@ export function setTakeEffect(roleId: string, effect: EffectId) {
 export function leaveRoom() {
   stopBeacon();
   wantPublic = false;
-  guests.forEach((g) => g.close());
+  if (useRoom.getState().status !== "idle") forgetLastRoom();
+  guests.forEach((g) => { g.send({ t: "bye" }); });
+  const closing = [...guests.values()];
+  setTimeout(() => closing.forEach((g) => g.close()), 300);
+  keys = new Map();
   guests.clear();
   hostLink?.close();
   hostLink = null;
@@ -683,7 +857,7 @@ export function leaveRoom() {
   roundTakes.clear();
   try { peer?.destroy(); } catch { /* already gone */ }
   peer = null;
-  setRoom({ status: "idle", error: null, isHost: false, myId: "", snap: null });
+  setRoom({ status: "idle", reconnecting: false, error: null, isHost: false, myId: "", snap: null });
 }
 
 export function inviteLink(code: string) {

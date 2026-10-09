@@ -420,3 +420,6 @@ button.icon-only { width: 36px; height: 36px; padding: 0; }
 .stat-value { font: 900 clamp(2.4rem, 9vw, 3.4rem) var(--font-display); line-height: 1; }
 .stat-label { font-weight: 700; }
 .stat-wins { background: var(--rec); border-color: var(--rec); color: #fff; }
+
+/* Lost connection to the room: stays on top of whatever screen you're on. */
+.reconnect-banner { position: sticky; top: 8px; z-index: 30; padding-top: 8px; }
