@@ -1,5 +1,5 @@
 import Peer from "peerjs";
-import { PUBLIC_PREFIX, PUBLIC_SLOTS, type PublicRoomInfo } from "./room";
+import { normalizeCode, PUBLIC_PREFIX, PUBLIC_SLOTS, type PublicRoomInfo } from "./room";
 
 /*
  * Finding public rooms without a server of our own: every open room claims one of
@@ -12,6 +12,21 @@ const BATCH = 10;
 
 export interface FoundRoom extends PublicRoomInfo {
   slot: number;
+}
+
+/** Answers come from strangers' browsers: keep only well-formed fields. */
+function clean(v: unknown): PublicRoomInfo | null {
+  const r = v as Record<string, unknown>;
+  if (!r || typeof r !== "object" || r.v !== 1) return null;
+  const str = (x: unknown, n: number) => String(x ?? "").slice(0, n);
+  const num = (x: unknown) => { const n = Math.floor(Number(x)); return Number.isFinite(n) ? Math.max(0, Math.min(99, n)) : 0; };
+  const phase = r.phase === "lobby" || r.phase === "recording" || r.phase === "screening" ? r.phase : null;
+  const code = normalizeCode(str(r.code, 10));
+  if (!phase || code.length !== 5) return null;
+  return {
+    v: 1, code, phase, host: str(r.host, 30), pack: str(r.pack, 80), scene: str(r.scene, 120),
+    players: num(r.players), capacity: num(r.capacity), lang: str(r.lang, 8),
+  };
 }
 
 export const joinable = (r: FoundRoom) => r.phase === "lobby" && r.players < r.capacity;
@@ -45,8 +60,8 @@ export function findRooms(onFound: (room: FoundRoom) => void): { done: Promise<v
       pending.set(id, finish);
       conn.on("data", (d) => {
         try {
-          const info = JSON.parse(String(d)) as PublicRoomInfo;
-          if (info.v === 1 && !cancelled) onFound({ ...info, slot });
+          const info = clean(JSON.parse(String(d)));
+          if (info && !cancelled) onFound({ ...info, slot });
         } catch { /* not a room */ }
         finish();
       });

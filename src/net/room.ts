@@ -1,7 +1,7 @@
 import Peer, { type DataConnection } from "peerjs";
 import { create } from "zustand";
 import { t } from "../i18n";
-import type { EffectId } from "../lib/audio/effects";
+import { EFFECTS, type EffectId } from "../lib/audio/effects";
 import { sceneMediaKeys, store } from "../lib/store";
 import type { Pack, Scene } from "../lib/types";
 import { Link, type FileMeta, type Json } from "./link";
@@ -88,6 +88,16 @@ export const normalizeCode = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g
 const PEER_OPTIONS = {
   debug: 0,
   config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:global.stun.twilio.com:3478" }] },
+};
+
+/* Everything below that comes off the wire is from another player's browser, possibly a stranger's. */
+const EFFECT_IDS = new Set<string>(EFFECTS.map((e) => e.id));
+const asEffect = (v: unknown): EffectId => (EFFECT_IDS.has(String(v)) ? (v as EffectId) : "none");
+const asOffset = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? Math.max(-600, Math.min(600, n)) : 0; };
+const isRole = (s: Snapshot, roleId: string) => !!s.scene?.roles.some((r) => r.id === roleId);
+const isScene = (v: unknown): v is Scene => {
+  const sc = v as Scene;
+  return !!sc && typeof sc === "object" && typeof sc.id === "string" && Array.isArray(sc.roles) && Array.isArray(sc.lines);
 };
 
 function bumpTakes() {
@@ -183,11 +193,17 @@ function hostHandle(link: Link, msg: Json) {
       if (snap && snap.phase !== "lobby") roundTakes.forEach((tk) => sendTake(link, tk, snap.round));
       break;
     }
-    case "need":
-      sendSceneMedia(link, msg.keys as string[]);
+    case "need": {
+      // Only the current scene's media, never other packs in the host's library.
+      const scene = useRoom.getState().snap?.scene;
+      if (!scene || !Array.isArray(msg.keys)) break;
+      const allowed = new Set(sceneMediaKeys(scene));
+      sendSceneMedia(link, [...new Set(msg.keys.map(String))].filter((k) => allowed.has(k)));
+      break;
+    }
       break;
     case "progress":
-      hostUpdate((s) => { const p = s.players.find((x) => x.id === id); if (p) p.progress = Number(msg.p); }, true);
+      hostUpdate((s) => { const p = s.players.find((x) => x.id === id); if (p) p.progress = Math.max(0, Math.min(1, Number(msg.p) || 0)); }, true);
       break;
     case "have":
       hostUpdate((s) => {
@@ -196,7 +212,8 @@ function hostHandle(link: Link, msg: Json) {
       });
       break;
     default:
-      applyAction(id, msg);
+      // Actions only from players who said hello and were let in.
+      if (guests.get(id) === link) applyAction(id, msg);
   }
 }
 
@@ -215,8 +232,11 @@ function dealRoles(s: Snapshot) {
 
 function hostHandleFile(link: Link, meta: FileMeta, blob: Blob) {
   const snap = useRoom.getState().snap;
-  if (meta.kind !== "take" || !snap || meta.round !== snap.round) return;
-  const take: RoundTake = { roleId: String(meta.roleId), blob, offset: Number(meta.offset), effect: meta.effect as EffectId };
+  if (meta.kind !== "take" || !snap || snap.phase === "lobby" || meta.round !== snap.round || guests.get(link.peer) !== link) return;
+  // A player can only send the part they were cast in, not overwrite someone else's.
+  const roleId = String(meta.roleId);
+  if (snap.players.find((p) => p.id === link.peer)?.roleId !== roleId) return;
+  const take: RoundTake = { roleId, blob, offset: asOffset(meta.offset), effect: asEffect(meta.effect) };
   hostAcceptTake(link.peer, take);
 }
 
@@ -262,6 +282,7 @@ function applyAction(playerId: string, msg: Json) {
       hostUpdate((s) => {
         if (s.phase !== "lobby" || s.public) return; // public rooms deal roles at random
         const roleId = msg.roleId ? String(msg.roleId) : null;
+        if (roleId && !isRole(s, roleId)) return;
         if (roleId && s.players.some((p) => p.roleId === roleId && p.id !== playerId)) return; // taken
         const p = s.players.find((x) => x.id === playerId);
         if (p) p.roleId = roleId;
@@ -281,15 +302,17 @@ function applyAction(playerId: string, msg: Json) {
       hostUpdate((s) => {
         const roleId = String(msg.roleId);
         const voter = s.players.find((p) => p.id === playerId);
-        if (s.phase !== "screening" || voter?.roleId === roleId) return; // no voting for yourself
+        if (s.phase !== "screening" || !voter || !isRole(s, roleId) || voter.roleId === roleId) return; // no voting for yourself
         if (s.votes[playerId] === roleId) delete s.votes[playerId];
         else s.votes[playerId] = roleId;
       });
       break;
     case "effect": {
+      // Only the voice's owner picks its effect.
+      const owner = useRoom.getState().snap?.players.find((p) => p.id === playerId);
       const tk = roundTakes.get(String(msg.roleId));
-      if (!tk) return;
-      tk.effect = msg.effect as EffectId;
+      if (!tk || !owner || owner.roleId !== tk.roleId) return;
+      tk.effect = asEffect(msg.effect);
       bumpTakes();
       guests.forEach((g) => { if (g.peer !== playerId) g.send({ t: "effect", roleId: tk.roleId, effect: tk.effect }); });
       break;
@@ -478,17 +501,19 @@ function guestHandle(msg: Json) {
   switch (msg.t) {
     case "state": {
       const snap = msg.snap as Snapshot;
+      if (!snap || typeof snap !== "object" || !Array.isArray(snap.players) || typeof snap.round !== "number") break;
       const prev = useRoom.getState().snap;
       if (prev && snap.round !== prev.round) { roundTakes.clear(); bumpTakes(); }
       setRoom({ status: "open", snap });
       break;
     }
     case "scene":
-      guestOffer(msg.pack as Snapshot["pack"], msg.scene as Scene, msg.files as Array<{ key: string; size: number }>);
+      if (!isScene(msg.scene) || !Array.isArray(msg.files)) break;
+      guestOffer(msg.pack as Snapshot["pack"], msg.scene, msg.files as Array<{ key: string; size: number }>);
       break;
     case "effect": {
       const tk = roundTakes.get(String(msg.roleId));
-      if (tk) { tk.effect = msg.effect as EffectId; bumpTakes(); }
+      if (tk) { tk.effect = asEffect(msg.effect); bumpTakes(); }
       break;
     }
     case "play":
@@ -503,8 +528,13 @@ function guestHandle(msg: Json) {
 }
 
 async function guestOffer(pack: Snapshot["pack"], scene: Scene, files: Array<{ key: string; size: number }>) {
+  // Accept only the files this scene actually uses.
+  const wanted = new Set(sceneMediaKeys(scene));
   const missing: Array<{ key: string; size: number }> = [];
-  for (const f of files) if (!(await store.getMedia(f.key))) missing.push(f);
+  for (const f of files) {
+    if (!f || !wanted.has(String(f.key))) continue;
+    if (!(await store.getMedia(String(f.key)))) missing.push({ key: String(f.key), size: Math.max(0, Number(f.size) || 0) });
+  }
   download = { sceneId: scene.id, pack, scene, waiting: new Set(missing.map((f) => f.key)), total: missing.reduce((n, f) => n + f.size, 0), done: 0 };
   if (!missing.length) return finishDownload();
   hostLink?.send({ t: "need", keys: missing.map((f) => f.key) });
@@ -519,7 +549,8 @@ async function guestHandleFile(meta: FileMeta, blob: Blob) {
   } else if (meta.kind === "take") {
     const snap = useRoom.getState().snap;
     if (snap && meta.round !== snap.round) return;
-    roundTakes.set(String(meta.roleId), { roleId: String(meta.roleId), blob, offset: Number(meta.offset), effect: meta.effect as EffectId });
+    if (!snap || !isRole(snap, String(meta.roleId))) return;
+    roundTakes.set(String(meta.roleId), { roleId: String(meta.roleId), blob, offset: asOffset(meta.offset), effect: asEffect(meta.effect) });
     bumpTakes();
   }
 }
