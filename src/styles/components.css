@@ -2,7 +2,8 @@
 .topbar { display: flex; align-items: center; gap: 10px; }
 .wordmark { font: 900 1.4rem var(--font-display); letter-spacing: -0.02em; background: none; border: 0; padding: 0; color: var(--ink); }
 .wordmark i { font-style: normal; color: var(--rec); }
-.wordmark { gap: 0; }
+.wordmark { gap: 0; border-radius: 0; -webkit-tap-highlight-color: transparent; }
+.wordmark:focus:not(:focus-visible) { outline: none; }
 .wordmark b { font-weight: 900; color: var(--accent); }
 :root[data-theme="light"] .wordmark b { color: var(--focus); }
 @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .wordmark b { color: var(--focus); } }
@@ -266,15 +267,9 @@ button.link:hover { transform: none; }
   min-height: 260px; padding: 26px; border-radius: 26px; border: 0; text-align: left; white-space: normal;
   font: inherit; cursor: default;
 }
-.mode-card::after {
-  content: ""; position: absolute; z-index: -1; border-radius: 50%;
-  width: 260px; height: 260px; right: -70px; bottom: -110px; opacity: 0.22;
-}
 .mode-find { background: var(--accent); color: var(--accent-ink); cursor: pointer; }
-.mode-find::after { background: var(--accent-ink); }
 .mode-find:hover { transform: translateY(-3px); box-shadow: 0 18px 40px color-mix(in srgb, var(--accent) 35%, transparent); }
 .mode-friends { background: var(--rec); color: #fff; }
-.mode-friends::after { background: #fff; width: 200px; height: 200px; right: -60px; bottom: -90px; opacity: 0.14; }
 .mode-kicker { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.7; }
 .mode-title { font: 900 clamp(1.9rem, 5vw, 2.6rem) var(--font-display); letter-spacing: -0.03em; line-height: 1; margin: 0; }
 .mode-text { max-width: 34ch; font-size: 0.98rem; opacity: 0.85; }

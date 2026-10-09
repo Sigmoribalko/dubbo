@@ -17,6 +17,9 @@ h2 { font-size: clamp(1.3rem, 4vw, 1.8rem); font-weight: 700; }
 h3 { font-size: 1.05rem; font-weight: 500; }
 p { margin: 0; }
 
+button, .btn, label, a {
+  -webkit-tap-highlight-color: transparent;
+}
 button, .btn {
   font: 600 0.95rem var(--font-body);
   border: 1.5px solid var(--line);
