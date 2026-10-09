@@ -167,7 +167,6 @@ function hostAccept(conn: DataConnection) {
     hostUpdate((s) => {
       if (s.phase === "lobby" || s.phase === "casting") {
         s.players = s.players.filter((p) => p.id !== link.peer);
-        if (s.public && s.phase === "casting") dealRoles(s);
       } else s.players.forEach((p) => { if (p.id === link.peer) p.online = false; });
     });
   };
@@ -189,7 +188,8 @@ function hostHandle(link: Link, msg: Json) {
         const existing = s.players.find((p) => p.id === id);
         if (existing) { existing.name = name; existing.online = true; }
         else s.players.push({ id, name, host: false, roleId: null, ready: !s.scene, progress: null, submitted: false, linesDone: 0, online: true });
-        if (s.public && s.phase === "casting") dealRoles(s);
+        // A newcomer takes a free seat; nobody else's role changes (no reshuffling by joining and leaving).
+        if (s.public && s.phase === "casting") fillFreeRoles(s);
       });
       const snap = useRoom.getState().snap;
       if (snap?.scene) sendSceneOffer(link, snap);
@@ -234,9 +234,19 @@ function dealRoles(s: Snapshot) {
   shuffle(onlinePlayers(s)).forEach((p, i) => { p.roleId = roles[i] ?? null; });
 }
 
+/** Give players without a role a random free one, leaving everyone else as they are. */
+function fillFreeRoles(s: Snapshot) {
+  if (!s.scene) return;
+  const free = shuffle(playableRoles(s.scene).map((r) => r.id).filter((id) => !s.players.some((p) => p.roleId === id)));
+  onlinePlayers(s).forEach((p) => { if (!p.roleId) p.roleId = free.shift() ?? null; });
+}
+
+/** A voice track is audio of scene length; anything bigger is not a recording. */
+const MAX_TAKE = 64 * 1024 * 1024;
+
 function hostHandleFile(link: Link, meta: FileMeta, blob: Blob) {
   const snap = useRoom.getState().snap;
-  if (meta.kind !== "take" || !snap || (snap.phase !== "recording" && snap.phase !== "screening") || meta.round !== snap.round || guests.get(link.peer) !== link) return;
+  if (meta.kind !== "take" || blob.size > MAX_TAKE || !snap || (snap.phase !== "recording" && snap.phase !== "screening") || meta.round !== snap.round || guests.get(link.peer) !== link) return;
   // A player can only send the part they were cast in, not overwrite someone else's.
   const roleId = String(meta.roleId);
   if (snap.players.find((p) => p.id === link.peer)?.roleId !== roleId) return;
@@ -535,8 +545,8 @@ export function joinRoom(code: string, name: string) {
 function guestHandle(msg: Json) {
   switch (msg.t) {
     case "state": {
-      const snap = msg.snap as Snapshot;
-      if (!snap || typeof snap !== "object" || !Array.isArray(snap.players) || typeof snap.round !== "number") break;
+      const snap = cleanSnapshot(msg.snap);
+      if (!snap) break;
       const prev = useRoom.getState().snap;
       if (prev && snap.round !== prev.round) { roundTakes.clear(); bumpTakes(); }
       setRoom({ status: "open", snap });
@@ -562,6 +572,34 @@ function guestHandle(msg: Json) {
   }
 }
 
+/** The host may be a stranger: keep only a well-formed snapshot so a bad one can't break the page. */
+function cleanSnapshot(v: unknown): Snapshot | null {
+  const s = v as Snapshot;
+  if (!s || typeof s !== "object" || !Array.isArray(s.players) || !Number.isFinite(s.round)) return null;
+  if (!["lobby", "casting", "recording", "screening"].includes(s.phase)) return null;
+  if (s.scene != null && !isScene(s.scene)) return null;
+  if (s.scene && !s.scene.lines.every((l) => l && typeof l.id === "string" && Number.isFinite(l.start) && Number.isFinite(l.end))) return null;
+  const str = (x: unknown, n: number) => String(x ?? "").slice(0, n);
+  return {
+    ...s,
+    code: str(s.code, 5),
+    votes: s.votes && typeof s.votes === "object" ? s.votes : {},
+    winners: Array.isArray(s.winners) ? s.winners.map((w) => str(w, 64)) : null,
+    public: !!s.public,
+    players: s.players.slice(0, 64).filter((p) => p && typeof p === "object").map((p) => ({
+      id: str(p.id, 64),
+      name: str(p.name, 30),
+      host: !!p.host,
+      roleId: p.roleId == null ? null : str(p.roleId, 64),
+      ready: !!p.ready,
+      progress: p.progress == null ? null : Math.max(0, Math.min(1, Number(p.progress) || 0)),
+      submitted: !!p.submitted,
+      linesDone: Math.max(0, Math.floor(Number(p.linesDone) || 0)),
+      online: !!p.online,
+    })),
+  };
+}
+
 async function guestOffer(pack: Snapshot["pack"], scene: Scene, files: Array<{ key: string; size: number }>) {
   // Accept only the files this scene actually uses.
   const wanted = new Set(sceneMediaKeys(scene));
@@ -581,7 +619,7 @@ async function guestHandleFile(meta: FileMeta, blob: Blob) {
     download.waiting.delete(String(meta.key));
     download.done += blob.size;
     if (!download.waiting.size) await finishDownload();
-  } else if (meta.kind === "take") {
+  } else if (meta.kind === "take" && blob.size <= MAX_TAKE) {
     const snap = useRoom.getState().snap;
     if (snap && meta.round !== snap.round) return;
     if (!snap || !isRole(snap, String(meta.roleId))) return;
